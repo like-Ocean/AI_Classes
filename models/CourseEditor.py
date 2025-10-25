@@ -1,7 +1,6 @@
-from typing import TYPE_CHECKING
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Integer, ForeignKey, DateTime, text, UniqueConstraint
+from sqlalchemy import Integer, ForeignKey, DateTime, text
 from core.database import Base
 
 

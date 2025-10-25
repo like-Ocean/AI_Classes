@@ -1,9 +1,10 @@
 from typing import List, Optional
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Integer, Text, ForeignKey
 from sqlalchemy import Enum as SAEnum
 from core.database import Base
-from Enums import QuestionType
+from .Enums import QuestionType
 
 
 class Question(Base):
@@ -15,6 +16,7 @@ class Question(Base):
     type: Mapped[QuestionType] = mapped_column(SAEnum(QuestionType, name="question_type"), nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     hint_text: Mapped[Optional[str]] = mapped_column(Text)
+    correct_answers: Mapped[Optional[dict]] = mapped_column(JSONB)
 
     test: Mapped["Test"] = relationship("Test", back_populates="questions")
     options: Mapped[List["AnswerOption"]] = relationship(

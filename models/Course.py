@@ -16,8 +16,23 @@ class Course(Base):
 
     creator_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
-    creator: Mapped[Optional["User"]] = relationship("User", back_populates="created_courses")
-    modules: Mapped[List["Module"]] = relationship("Module", back_populates="course", cascade="all, delete-orphan")
-    editors: Mapped[List["CourseEditor"]] = relationship("CourseEditor", back_populates="course", cascade="all, delete-orphan")
-    applications: Mapped[List["CourseApplication"]] = relationship("CourseApplication", back_populates="course", cascade="all, delete-orphan")
-    enrollments: Mapped[List["CourseEnrollment"]] = relationship("CourseEnrollment", back_populates="course", cascade="all, delete-orphan")
+    creator: Mapped[Optional["User"]] = relationship(
+        "User", back_populates="created_courses"
+    )
+    modules: Mapped[List["Module"]] = relationship(
+        "Module", back_populates="course", cascade="all, delete-orphan"
+    )
+    editors: Mapped[List["CourseEditor"]] = relationship(
+        "CourseEditor", back_populates="course", cascade="all, delete-orphan"
+    )
+    applications: Mapped[List["CourseApplication"]] = relationship(
+        "CourseApplication", back_populates="course", cascade="all, delete-orphan"
+    )
+    enrollments: Mapped[List["CourseEnrollment"]] = relationship(
+        "CourseEnrollment", back_populates="course", cascade="all, delete-orphan"
+    )
+    progress: Mapped[List["CourseProgress"]] = relationship(
+        "CourseProgress",
+        back_populates="course",
+        cascade="all, delete-orphan"
+    )

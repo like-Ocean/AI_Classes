@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 import os
 
 from core.database import engine, Base
+from core.config import settings
 # from routers import routes
 # from init_db import init_db
-
 
 
 load_dotenv()
@@ -16,13 +16,12 @@ load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if os.getenv("ENV") == "development":
+    if settings.ENV == "development":
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
 
-    # await init_db()
-
     yield
+
     await engine.dispose()
 
 
@@ -48,8 +47,8 @@ app.add_middleware(
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
-        host=os.getenv("APP_HOST"),
-        port=int(os.getenv("APP_PORT")),
-        reload=os.getenv("APP_RELOAD", "False").lower() == "true",
-        log_level=os.getenv("APP_LOG_LEVEL", "info").lower()
+        host=settings.APP_HOST,
+        port=settings.APP_PORT,
+        reload=settings.APP_RELOAD,
+        log_level=settings.APP_LOG_LEVEL.lower()
     )

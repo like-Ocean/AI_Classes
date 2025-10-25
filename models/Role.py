@@ -2,7 +2,7 @@ from typing import List
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Integer, Enum as SAEnum
 from core.database import Base
-from Enums import RoleType
+from .Enums import RoleType
 
 
 class Role(Base):

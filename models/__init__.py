@@ -1,3 +1,4 @@
+from .Enums import MaterialType, QuestionType, RoleType
 from .Role import Role
 from .User import User
 from .RefreshToken import RefreshToken
@@ -5,6 +6,7 @@ from .Course import Course
 from .Module import Module
 from .Material import Material
 from .LessonProgress import LessonProgress
+from .CourseProgress import CourseProgress
 from .CourseEnrollment import CourseEnrollment
 from .CourseApplication import CourseApplication
 from .CourseEditor import CourseEditor

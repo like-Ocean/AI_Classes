@@ -1,0 +1,48 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    # Environment
+    ENV: str = "development"
+    DEBUG: bool = True
+
+    # Database
+    DB_NAME: str
+    DB_USER: str
+    DB_PASSWORD: str
+    DB_HOST: str = "127.0.0.1"
+    DB_PORT: int = 5432
+
+    # Application
+    APP_HOST: str = "127.0.0.1"
+    APP_PORT: int = 8000
+    APP_RELOAD: bool = True
+    APP_LOG_LEVEL: str = "debug"
+    APP_PROTOCOL: str = "http"
+
+    # Security (JWT)
+    SECRET_KEY: str
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # Admin
+    ADMIN_EMAIL: str
+    ADMIN_PASSWORD: str
+
+    @property
+    def DATABASE_URL(self) -> str:
+        return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
+    @property
+    def DATABASE_URL_SYNC(self) -> str:
+        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore"
+    )
+
+
+settings = Settings()

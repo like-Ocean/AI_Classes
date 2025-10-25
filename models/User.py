@@ -5,7 +5,6 @@ from sqlalchemy import String, DateTime, ForeignKey, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from core.database import Base
-from werkzeug.security import generate_password_hash, check_password_hash
 
 
 class User(Base):
@@ -20,7 +19,7 @@ class User(Base):
     patronymic: Mapped[str | None] = mapped_column(String(100))
     group_name: Mapped[str | None] = mapped_column(String(100))
 
-    role_id: Mapped[int | None] = mapped_column(ForeignKey("roles.id", ondelete="SET NULL"))
+    role_id: Mapped[int] = mapped_column(ForeignKey("roles.id", ondelete="RESTRICT"), nullable=False)
     role: Mapped["Role"] = relationship("Role", back_populates="users")
 
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
@@ -53,11 +52,10 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+    course_progress: Mapped[List["CourseProgress"]] = relationship(
+        "CourseProgress",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("NOW()"), nullable=False)
-
-    def set_password(self, password: str):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password: str):
-        return check_password_hash(self.password_hash, password)
