@@ -4,6 +4,8 @@ from core.database import AsyncSessionLocal
 from models import Role
 from models.Enums import RoleType
 from models.User import User
+from core.config import settings
+from core.security import get_password_hash
 
 
 async def init_roles(session: AsyncSession):
@@ -29,9 +31,6 @@ async def init_roles(session: AsyncSession):
 
 
 async def init_admin_user(session: AsyncSession):
-    from core.config import settings
-    from core.security import get_password_hash
-
     result = await session.execute(
         select(User).where(User.email == settings.ADMIN_EMAIL)
     )

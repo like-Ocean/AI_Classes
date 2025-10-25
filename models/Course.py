@@ -17,7 +17,9 @@ class Course(Base):
     creator_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
 
     creator: Mapped[Optional["User"]] = relationship(
-        "User", back_populates="created_courses"
+        "User",
+        foreign_keys=[creator_id],
+        back_populates="created_courses"
     )
     modules: Mapped[List["Module"]] = relationship(
         "Module", back_populates="course", cascade="all, delete-orphan"

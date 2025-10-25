@@ -30,11 +30,13 @@ class User(Base):
     created_courses: Mapped[List["Course"]] = relationship(
         "Course",
         back_populates="creator",
+        foreign_keys="Course.creator_id",
         cascade="all, delete-orphan"
     )
     applications: Mapped[List["CourseApplication"]] = relationship(
         "CourseApplication",
         back_populates="user",
+        foreign_keys="CourseApplication.user_id",
         cascade="all, delete-orphan"
     )
     enrollments: Mapped[List["CourseEnrollment"]] = relationship(
@@ -45,6 +47,7 @@ class User(Base):
     editable_courses: Mapped[List["CourseEditor"]] = relationship(
         "CourseEditor",
         back_populates="user",
+        foreign_keys="CourseEditor.user_id",
         cascade="all, delete-orphan"
     )
     lesson_progress: Mapped[List["LessonProgress"]] = relationship(

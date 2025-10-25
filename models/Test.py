@@ -25,6 +25,11 @@ class Test(Base):
         nullable=True, index=True
     )
 
+    material: Mapped[Optional["Material"]] = relationship(
+        "Material",
+        back_populates="tests"
+    )
+
     questions: Mapped[List["Question"]] = relationship(
         "Question",
         back_populates="test",

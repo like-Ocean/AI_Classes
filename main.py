@@ -1,14 +1,13 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-import os
-
 from core.database import engine, Base
 from core.config import settings
+from core.init_db import init_database
 # from routers import routes
-# from init_db import init_db
 
 
 load_dotenv()
@@ -16,9 +15,19 @@ load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if settings.ENV == "development":
+    if settings.ENV == "development" or settings.ENV == "production":
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+        print("Database tables created")
+
+    try:
+        await init_database()
+    except Exception as e:
+        print(f"Failed to initialize database: {e}")
+        if settings.ENV == "production":
+            raise
+
+    print("Application started successfully")
 
     yield
 
@@ -28,7 +37,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Education Reviews Platform",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    debug=settings.DEBUG
 )
 
 app.add_middleware(
