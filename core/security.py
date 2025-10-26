@@ -28,6 +28,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
 
     to_encode.update({"exp": expire, "type": "access"})
 
+    if "sub" in to_encode:
+        to_encode["sub"] = str(to_encode["sub"])
+
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
@@ -50,5 +53,10 @@ def decode_token(token: str):
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload
-    except PyJWTError:
-        return None
+    except jwt.ExpiredSignatureError:
+        print("Token expired")
+    except jwt.InvalidSignatureError:
+        print("Invalid signature")
+    except PyJWTError as e:
+        print(f"Other JWT error: {e}")
+    return None

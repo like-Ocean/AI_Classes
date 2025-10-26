@@ -23,3 +23,10 @@ class UserResponse(UserBase):
 class ChangePasswordRequest(BaseModel):
     old_password: str
     new_password: str = Field(..., min_length=8, max_length=100)
+
+
+class UpdateProfileRequest(BaseModel):
+    first_name: str = Field(..., min_length=1, max_length=100)
+    last_name: str = Field(..., min_length=1, max_length=100)
+    patronymic: Optional[str] = Field(None, max_length=100)
+    group_name: Optional[str] = Field(None, max_length=100)

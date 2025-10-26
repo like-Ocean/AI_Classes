@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from core.database import engine, Base
 from core.config import settings
 from core.init_db import init_database
-# from routers import routes
+from routers import routes
 
 
 load_dotenv()
@@ -50,8 +50,8 @@ app.add_middleware(
 )
 
 
-# for router in routes:
-#     app.include_router(router, prefix="/api")
+for router in routes:
+    app.include_router(router, prefix="/api")
 
 
 if __name__ == "__main__":
