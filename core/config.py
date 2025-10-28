@@ -30,6 +30,16 @@ class Settings(BaseSettings):
     ADMIN_EMAIL: str
     ADMIN_PASSWORD: str
 
+    # File storage
+    UPLOAD_DIR: str = "uploads"
+    MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
+    ALLOWED_EXTENSIONS: list = [
+        ".pdf", ".doc", ".docx", ".txt", ".md",
+        ".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp",
+        ".mp4", ".webm", ".avi", ".mov",
+        ".zip", ".rar"
+    ]
+
     @property
     def DATABASE_URL(self) -> str:
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"

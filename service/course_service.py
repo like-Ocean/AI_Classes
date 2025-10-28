@@ -1,8 +1,12 @@
+from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
-from models import Course, Module, Material, CourseEditor, User, Role
+from models import (
+    Course, Module, Material,
+    CourseEditor, User, Role, MaterialFile, File
+)
 from models.Enums import RoleType
 from schemas.course import (
     CourseCreateRequest, CourseUpdateRequest, ModuleCreateRequest,
@@ -55,11 +59,7 @@ async def check_course_access(
     return course
 
 
-async def create_course(
-        data: CourseCreateRequest,
-        creator: User,
-        db: AsyncSession
-):
+async def create_course(data: CourseCreateRequest, creator: User, db: AsyncSession):
     course = Course(
         title=data.title,
         description=data.description,
@@ -74,10 +74,7 @@ async def create_course(
     return course
 
 
-async def get_my_courses(
-        user: User,
-        db: AsyncSession
-):
+async def get_my_courses(user: User, db: AsyncSession):
     creator_query = select(Course).where(Course.creator_id == user.id)
     editor_query = (
         select(Course)
@@ -96,11 +93,7 @@ async def get_my_courses(
     return list(all_courses.values())
 
 
-async def get_course_detail(
-        course_id: int,
-        user: User,
-        db: AsyncSession
-):
+async def get_course_detail(course_id: int, user: User, db: AsyncSession):
     await check_course_access(course_id, user, db)
     result = await db.execute(
         select(Course)
@@ -194,11 +187,7 @@ async def update_module(
     return module
 
 
-async def delete_module(
-        module_id: int,
-        user: User,
-        db: AsyncSession
-):
+async def delete_module(module_id: int, user: User, db: AsyncSession):
     result = await db.execute(
         select(Module).where(Module.id == module_id)
     )
@@ -289,16 +278,11 @@ async def update_material(
     return material
 
 
-async def delete_material(
-        material_id: int,
-        user: User,
-        db: AsyncSession
-):
+async def delete_material(material_id: int, user: User, db: AsyncSession):
     result = await db.execute(
         select(Material).join(Module).where(Material.id == material_id)
     )
     material = result.scalar_one_or_none()
-
     if not material:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -311,12 +295,7 @@ async def delete_material(
     await db.commit()
 
 
-async def add_editor(
-        course_id: int,
-        teacher_id: int,
-        user: User,
-        db: AsyncSession
-):
+async def add_editor(course_id: int, teacher_id: int, user: User, db: AsyncSession):
     course = await check_course_access(course_id, user, db, require_creator=True)
     result = await db.execute(
         select(User).where(User.id == teacher_id)
@@ -367,12 +346,7 @@ async def add_editor(
     return editor
 
 
-async def remove_editor(
-        course_id: int,
-        editor_id: int,
-        user: User,
-        db: AsyncSession
-):
+async def remove_editor(course_id: int, editor_id: int, user: User, db: AsyncSession):
     await check_course_access(course_id, user, db, require_creator=True)
     result = await db.execute(
         select(CourseEditor).where(CourseEditor.id == editor_id)
@@ -386,4 +360,97 @@ async def remove_editor(
         )
 
     await db.delete(editor)
+    await db.commit()
+
+
+async def attach_files_to_material(
+        material_id: int, file_ids: List[int],
+        user: User, db: AsyncSession
+):
+    """
+    Прикрепление файлов к материалу.
+    """
+    result = await db.execute(
+        select(Material).join(Module).where(Material.id == material_id)
+    )
+    material = result.scalar_one_or_none()
+    if not material:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Material not found"
+        )
+
+    await check_course_access(material.module.course_id, user, db)
+
+    result = await db.execute(
+        select(File).where(File.id.in_(file_ids))
+    )
+    files = result.scalars().all()
+    if len(files) != len(file_ids):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Some files not found"
+        )
+
+    material_files = []
+    for file_id in file_ids:
+        existing = await db.execute(
+            select(MaterialFile).where(
+                and_(
+                    MaterialFile.material_id == material_id,
+                    MaterialFile.file_id == file_id
+                )
+            )
+        )
+        if existing.scalar_one_or_none():
+            continue
+        material_file = MaterialFile(
+            material_id=material_id,
+            file_id=file_id
+        )
+        db.add(material_file)
+        material_files.append(material_file)
+
+    await db.commit()
+
+    for mf in material_files:
+        await db.refresh(mf)
+
+    return material_files
+
+
+async def detach_file_from_material(
+        material_id: int, file_id: int,
+        user: User, db: AsyncSession
+):
+    """
+    Открепление файла от материала.
+    """
+    result = await db.execute(
+        select(Material).join(Module).where(Material.id == material_id)
+    )
+    material = result.scalar_one_or_none()
+    if not material:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Material not found"
+        )
+    await check_course_access(material.module.course_id, user, db)
+
+    result = await db.execute(
+        select(MaterialFile).where(
+            and_(
+                MaterialFile.material_id == material_id,
+                MaterialFile.file_id == file_id
+            )
+        )
+    )
+    material_file = result.scalar_one_or_none()
+    if not material_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not attached to this material"
+        )
+
+    await db.delete(material_file)
     await db.commit()

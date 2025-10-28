@@ -19,4 +19,13 @@ class Material(Base):
     position: Mapped[int] = mapped_column(Integer, nullable=False)
 
     module: Mapped["Module"] = relationship("Module", back_populates="materials")
-    tests: Mapped[List["Test"]] = relationship("Test", back_populates="material", cascade="all, delete-orphan")
+    tests: Mapped[List["Test"]] = relationship(
+        "Test",
+        back_populates="material",
+        cascade="all, delete-orphan"
+    )
+    material_files: Mapped[List["MaterialFile"]] = relationship(
+        "MaterialFile",
+        back_populates="material",
+        cascade="all, delete-orphan"
+    )

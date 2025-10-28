@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, UploadFile, File as FastAPIFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from core.database import get_db
 from core.dependencies import get_current_teacher
-from service import course_service
+from service import course_service, file_service
 from models import User
 from schemas.course import (
     CourseCreateRequest, CourseUpdateRequest, CourseResponse,
@@ -11,14 +11,17 @@ from schemas.course import (
     ModuleResponse, MaterialCreateRequest, MaterialUpdateRequest,
     MaterialResponse, AddEditorRequest, EditorResponse
 )
+from schemas.file import FileResponse, MaterialFileResponse
 from schemas.auth import MessageResponse
 
 teacher_router = APIRouter(prefix="/teacher", tags=["Teacher"])
 
 # НЕ ТЕСТИЛ НУЖНО ПРОВЕРЯТЬ. СКОРЕЕ ВСЕГО НУЖНО ДОБАВИТЬ
-# ЕЩЁ ПРАУ ТАБЛИЦ ДЛЯ МАТЕРИАЛОВ Т.К Я ЗАТУПИЛ
+# ЕЩЁ ПРАУ ТАБЛИЦ ДЛЯ МАТЕРИАЛОВ Т.К Я ЗАТУПИЛ..
+# Добавил но ничего не тестил
 
 # COURSES
+
 
 @teacher_router.post(
     "/courses",
@@ -72,8 +75,7 @@ async def get_course(
     summary="Update course"
 )
 async def update_course(
-        course_id: int,
-        data: CourseUpdateRequest,
+        course_id: int, data: CourseUpdateRequest,
         current_teacher: User = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db)
 ):
@@ -182,8 +184,7 @@ async def create_material(
     summary="Update material"
 )
 async def update_material(
-        material_id: int,
-        data: MaterialUpdateRequest,
+        material_id: int, data: MaterialUpdateRequest,
         current_teacher: User = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db)
 ):
@@ -220,8 +221,7 @@ async def delete_material(
     summary="Add course editor"
 )
 async def add_editor(
-        course_id: int,
-        data: AddEditorRequest,
+        course_id: int, data: AddEditorRequest,
         current_teacher: User = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db)
 ):
@@ -237,8 +237,7 @@ async def add_editor(
     summary="Remove course editor"
 )
 async def remove_editor(
-        course_id: int,
-        editor_id: int,
+        course_id: int, editor_id: int,
         current_teacher: User = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db)
 ):
@@ -248,3 +247,56 @@ async def remove_editor(
     return MessageResponse(
         message="Editor successfully removed"
     )
+
+# FILES
+@teacher_router.post(
+    "/files/upload",
+    response_model=FileResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload file"
+)
+async def upload_file(
+        file: UploadFile = FastAPIFile(...),
+        current_teacher: User = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db)
+):
+    """
+    Максимальный размер: 100 MB
+    """
+    uploaded_file = await file_service.save_file(file, db)
+    return uploaded_file
+
+
+#     Прикрепление файлов к материалу.
+#     Сначала загрузить файлы через /files/upload,
+#     затем прикрепите их к материалу по ID.
+@teacher_router.post(
+    "/materials/{material_id}/files",
+    response_model=List[MaterialFileResponse],
+    summary="Attach files to material"
+)
+async def attach_files(
+        material_id: int, file_ids: List[int],
+        current_teacher: User = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db)
+):
+    material_files = await course_service.attach_files_to_material(
+        material_id, file_ids, current_teacher, db
+    )
+    return material_files
+
+
+@teacher_router.delete(
+    "/materials/{material_id}/files/{file_id}",
+    response_model=MessageResponse,
+    summary="Detach file from material"
+)
+async def detach_file(
+        material_id: int, file_id: int,
+        current_teacher: User = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db)
+):
+    await course_service.detach_file_from_material(
+        material_id, file_id, current_teacher, db
+    )
+    return MessageResponse(message="File detached successfully")

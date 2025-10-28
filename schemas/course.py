@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from models.Enums import MaterialType
+from schemas.file import MaterialFileResponse
 
 
 class CourseCreateRequest(BaseModel):
@@ -75,6 +76,7 @@ class MaterialResponse(BaseModel):
     text_content: Optional[str]
     transcript: Optional[str]
     position: int
+    files: List[MaterialFileResponse] = []
 
     class Config:
         from_attributes = True

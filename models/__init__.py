@@ -4,7 +4,9 @@ from .User import User
 from .RefreshToken import RefreshToken
 from .Course import Course
 from .Module import Module
+from .File import File
 from .Material import Material
+from .MaterialFile import MaterialFile
 from .LessonProgress import LessonProgress
 from .CourseProgress import CourseProgress
 from .CourseEnrollment import CourseEnrollment
