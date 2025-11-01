@@ -4,8 +4,8 @@ from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from models import (
-    Course, Module, Material,
-    CourseEditor, User, Role, MaterialFile, File
+    Course, Module, Material, CourseEditor,
+    User, Role, MaterialFile, File
 )
 from models.Enums import RoleType
 from schemas.course import (
@@ -59,12 +59,9 @@ async def check_course_access(
 
 async def create_course(data: CourseCreateRequest, creator: User, db: AsyncSession):
     course = Course(
-        title=data.title,
-        description=data.description,
-        img_url=data.img_url,
-        creator_id=creator.id
+        title=data.title, description=data.description,
+        img_url=data.img_url, creator_id=creator.id
     )
-
     db.add(course)
     await db.commit()
     await db.refresh(course)
@@ -92,10 +89,6 @@ async def get_my_courses(user: User, db: AsyncSession):
 
 
 async def get_course_detail(course_id: int, user: User, db: AsyncSession):
-    """
-    Получение детальной информации о курсе с модулями (БЕЗ материалов).
-    Материалы загружаются отдельно при запросе конкретного модуля.
-    """
     await check_course_access(course_id, user, db)
     result = await db.execute(
         select(Course)
@@ -152,9 +145,6 @@ async def create_module(
 
 
 async def get_module_detail(module_id: int, user: User, db: AsyncSession):
-    """
-    Получение детальной информации о модуле со всеми материалами и файлами.
-    """
     result = await db.execute(
         select(Module)
         .options(
@@ -444,9 +434,6 @@ async def detach_file_from_material(
         material_id: int, file_id: int,
         user: User, db: AsyncSession
 ):
-    """
-    Открепление файла от материала.
-    """
     result = await db.execute(
         select(Material).join(Module).where(Material.id == material_id)
     )
