@@ -7,8 +7,9 @@ from service import course_service, file_service
 from models import User
 from schemas.course import (
     CourseCreateRequest, CourseUpdateRequest, CourseResponse,
-    CourseDetailResponse, ModuleCreateRequest, ModuleUpdateRequest,
-    ModuleResponse, MaterialCreateRequest, MaterialUpdateRequest,
+    ModuleCreateRequest, ModuleUpdateRequest, CourseWithModulesResponse,
+    ModuleResponse, ModuleWithMaterialsResponse,
+    MaterialCreateRequest, MaterialUpdateRequest,
     MaterialResponse, AddEditorRequest, EditorResponse
 )
 from schemas.file import FileResponse, MaterialFileResponse
@@ -16,13 +17,10 @@ from schemas.auth import MessageResponse
 
 teacher_router = APIRouter(prefix="/teacher", tags=["Teacher"])
 
-# НЕ ТЕСТИЛ НУЖНО ПРОВЕРЯТЬ. СКОРЕЕ ВСЕГО НУЖНО ДОБАВИТЬ
-# ЕЩЁ ПРАУ ТАБЛИЦ ДЛЯ МАТЕРИАЛОВ Т.К Я ЗАТУПИЛ..
-# Добавил но ничего не тестил
+# НЕ ТЕСТИЛ НУЖНО ПРОВЕРЯТЬ
+
 
 # COURSES
-
-
 @teacher_router.post(
     "/courses",
     response_model=CourseResponse,
@@ -55,17 +53,15 @@ async def get_my_courses(
 
 @teacher_router.get(
     "/courses/{course_id}",
-    response_model=CourseDetailResponse,
-    summary="Get course details"
+    response_model=CourseWithModulesResponse,
+    summary="Get course with modules"
 )
 async def get_course(
         course_id: int,
         current_teacher: User = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db)
 ):
-    course = await course_service.get_course_detail(
-        course_id, current_teacher, db
-    )
+    course = await course_service.get_course_detail(course_id, current_teacher, db)
     return course
 
 
@@ -120,6 +116,20 @@ async def create_module(
     module = await course_service.create_module(
         course_id, data, current_teacher, db
     )
+    return module
+
+
+@teacher_router.get(
+    "/modules/{module_id}",
+    response_model=ModuleWithMaterialsResponse,
+    summary="Get module with materials"
+)
+async def get_module(
+        module_id: int,
+        current_teacher: User = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db)
+):
+    module = await course_service.get_module_detail(module_id, current_teacher, db)
     return module
 
 
@@ -248,6 +258,7 @@ async def remove_editor(
         message="Editor successfully removed"
     )
 
+
 # FILES
 @teacher_router.post(
     "/files/upload",
@@ -260,9 +271,6 @@ async def upload_file(
         current_teacher: User = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db)
 ):
-    """
-    Максимальный размер: 100 MB
-    """
     uploaded_file = await file_service.save_file(file, db)
     return uploaded_file
 
@@ -292,9 +300,9 @@ async def attach_files(
     summary="Detach file from material"
 )
 async def detach_file(
-        material_id: int, file_id: int,
-        current_teacher: User = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db)
+    material_id: int, file_id: int,
+    current_teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db)
 ):
     await course_service.detach_file_from_material(
         material_id, file_id, current_teacher, db

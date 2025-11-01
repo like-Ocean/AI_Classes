@@ -179,3 +179,7 @@ postgres-data
 .postgres-data
 .postgres-data/
 /postgres-data
+
+uploads/
+.uploads/
+.uploads

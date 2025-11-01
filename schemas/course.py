@@ -2,9 +2,10 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from models.Enums import MaterialType
-from schemas.file import MaterialFileResponse
+from schemas.file import MaterialFileResponse, FileResponse
 
 
+# COURSE SCHEMAS
 class CourseCreateRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = None
@@ -29,6 +30,7 @@ class CourseResponse(BaseModel):
         from_attributes = True
 
 
+# MODULE SCHEMAS
 class ModuleCreateRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     position: int = Field(..., ge=1, description="Позиция модуля в курсе")
@@ -49,6 +51,7 @@ class ModuleResponse(BaseModel):
         from_attributes = True
 
 
+# MATERIAL
 class MaterialCreateRequest(BaseModel):
     type: MaterialType
     title: str = Field(..., min_length=1, max_length=255)
@@ -67,6 +70,15 @@ class MaterialUpdateRequest(BaseModel):
     position: Optional[int] = Field(None, ge=1)
 
 
+class MaterialFileInfo(BaseModel):
+    id: int
+    file_id: int
+    file: FileResponse
+
+    class Config:
+        from_attributes = True
+
+
 class MaterialResponse(BaseModel):
     id: int
     module_id: int
@@ -76,18 +88,18 @@ class MaterialResponse(BaseModel):
     text_content: Optional[str]
     transcript: Optional[str]
     position: int
-    files: List[MaterialFileResponse] = []
+    files: List[MaterialFileInfo] = []
 
     class Config:
         from_attributes = True
 
 
-class ModuleDetailResponse(ModuleResponse):
+class CourseWithModulesResponse(CourseResponse):
+    modules: List[ModuleResponse] = []
+
+
+class ModuleWithMaterialsResponse(ModuleResponse):
     materials: List[MaterialResponse] = []
-
-
-class CourseDetailResponse(CourseResponse):
-    modules: List[ModuleDetailResponse] = []
 
 
 class AddEditorRequest(BaseModel):

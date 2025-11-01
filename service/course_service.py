@@ -15,10 +15,8 @@ from schemas.course import (
 
 
 async def check_course_access(
-        course_id: int,
-        user: User,
-        db: AsyncSession,
-        require_creator: bool = False
+        course_id: int, user: User,
+        db: AsyncSession, require_creator: bool = False
 ):
     result = await db.execute(
         select(Course).where(Course.id == course_id)
@@ -94,28 +92,25 @@ async def get_my_courses(user: User, db: AsyncSession):
 
 
 async def get_course_detail(course_id: int, user: User, db: AsyncSession):
+    """
+    Получение детальной информации о курсе с модулями (БЕЗ материалов).
+    Материалы загружаются отдельно при запросе конкретного модуля.
+    """
     await check_course_access(course_id, user, db)
     result = await db.execute(
         select(Course)
-        .options(
-            selectinload(Course.modules).selectinload(Module.materials)
-        )
+        .options(selectinload(Course.modules))
         .where(Course.id == course_id)
     )
     course = result.scalar_one()
-
     course.modules.sort(key=lambda m: m.position)
-    for module in course.modules:
-        module.materials.sort(key=lambda mat: mat.position)
 
     return course
 
 
 async def update_course(
-        course_id: int,
-        data: CourseUpdateRequest,
-        user: User,
-        db: AsyncSession
+        course_id: int, data: CourseUpdateRequest,
+        user: User, db: AsyncSession
 ):
     course = await check_course_access(course_id, user, db)
 
@@ -139,10 +134,8 @@ async def delete_course(course_id: int, user: User, db: AsyncSession):
 
 
 async def create_module(
-        course_id: int,
-        data: ModuleCreateRequest,
-        user: User,
-        db: AsyncSession
+        course_id: int, data: ModuleCreateRequest,
+        user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     module = Module(
@@ -158,11 +151,36 @@ async def create_module(
     return module
 
 
+async def get_module_detail(module_id: int, user: User, db: AsyncSession):
+    """
+    Получение детальной информации о модуле со всеми материалами и файлами.
+    """
+    result = await db.execute(
+        select(Module)
+        .options(
+            selectinload(Module.materials)
+            .selectinload(Material.material_files)
+            .selectinload(MaterialFile.file)
+        )
+        .where(Module.id == module_id)
+    )
+    module = result.scalar_one_or_none()
+    if not module:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Module not found"
+        )
+    await check_course_access(module.course_id, user, db)
+    module.materials.sort(key=lambda mat: mat.position)
+    for material in module.materials:
+        material.files = material.material_files
+
+    return module
+
+
 async def update_module(
-        module_id: int,
-        data: ModuleUpdateRequest,
-        user: User,
-        db: AsyncSession
+        module_id: int, data: ModuleUpdateRequest,
+        user: User, db: AsyncSession
 ):
     result = await db.execute(
         select(Module).where(Module.id == module_id)
@@ -205,10 +223,8 @@ async def delete_module(module_id: int, user: User, db: AsyncSession):
 
 
 async def create_material(
-        module_id: int,
-        data: MaterialCreateRequest,
-        user: User,
-        db: AsyncSession
+        module_id: int, data: MaterialCreateRequest,
+        user: User, db: AsyncSession
 ):
     result = await db.execute(
         select(Module).where(Module.id == module_id)
@@ -241,10 +257,8 @@ async def create_material(
 
 
 async def update_material(
-        material_id: int,
-        data: MaterialUpdateRequest,
-        user: User,
-        db: AsyncSession
+        material_id: int, data: MaterialUpdateRequest,
+        user: User, db: AsyncSession
 ):
     result = await db.execute(
         select(Material).join(Module).where(Material.id == material_id)
@@ -367,11 +381,10 @@ async def attach_files_to_material(
         material_id: int, file_ids: List[int],
         user: User, db: AsyncSession
 ):
-    """
-    Прикрепление файлов к материалу.
-    """
     result = await db.execute(
-        select(Material).join(Module).where(Material.id == material_id)
+        select(Material)
+        .options(selectinload(Material.module))
+        .where(Material.id == material_id)
     )
     material = result.scalar_one_or_none()
     if not material:
@@ -413,10 +426,18 @@ async def attach_files_to_material(
 
     await db.commit()
 
+    material_files_with_relations = []
     for mf in material_files:
-        await db.refresh(mf)
+        result = await db.execute(
+            select(MaterialFile)
+            .options(selectinload(MaterialFile.file))
+            .options(selectinload(MaterialFile.material))
+            .where(MaterialFile.id == mf.id)
+        )
+        mf_loaded = result.scalar_one()
+        material_files_with_relations.append(mf_loaded)
 
-    return material_files
+    return material_files_with_relations
 
 
 async def detach_file_from_material(

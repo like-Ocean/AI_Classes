@@ -13,7 +13,7 @@ class Material(Base):
     module_id: Mapped[int] = mapped_column(ForeignKey("modules.id", ondelete="CASCADE"), nullable=False, index=True)
     type: Mapped[MaterialType] = mapped_column(SAEnum(MaterialType, name="material_type"), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    content_url: Mapped[Optional[str]] = mapped_column(String(500))
+    content_url: Mapped[Optional[str]] = mapped_column(String(500)) # тоже лишнее поле получается
     text_content: Mapped[Optional[str]] = mapped_column(Text)
     transcript: Mapped[Optional[str]] = mapped_column(Text)
     position: Mapped[int] = mapped_column(Integer, nullable=False)

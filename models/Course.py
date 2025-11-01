@@ -11,7 +11,7 @@ class Course(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text)
-    img_url: Mapped[Optional[str]] = mapped_column(String(500))
+    img_url: Mapped[Optional[str]] = mapped_column(String(500))  # переделать
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP, server_default=text("NOW()"))
 
     creator_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
