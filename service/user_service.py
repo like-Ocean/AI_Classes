@@ -5,17 +5,16 @@ from core.security import verify_password, get_password_hash
 from schemas.user import UserResponse
 
 
+# TODO: Добавить возможность записи на крусы,
+#  просмотра списка всех курсов и курсов на которые уже записан
 async def get_user(user: User):
     return UserResponse.model_validate(user)
 
 
 async def update_user_profile(
-        user: User,
-        first_name: str,
-        last_name: str,
-        patronymic: str | None,
-        group_name: str | None,
-        db: AsyncSession
+        user: User, first_name: str,
+        last_name: str, patronymic: str | None,
+        group_name: str | None, db: AsyncSession
 ):
     user.first_name = first_name
     user.last_name = last_name
@@ -29,10 +28,8 @@ async def update_user_profile(
 
 
 async def change_password(
-        user: User,
-        old_password: str,
-        new_password: str,
-        db: AsyncSession
+        user: User, old_password: str,
+        new_password: str, db: AsyncSession
 ):
     if not verify_password(old_password, user.password_hash):
         raise HTTPException(

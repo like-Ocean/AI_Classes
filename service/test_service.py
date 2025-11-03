@@ -1,9 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
-from typing import List
-from models import Test, Question, AnswerOption, Material, Module, User
+from models import Test, Question, AnswerOption, Material, User
 from models.Enums import QuestionType
 from schemas.tests import (
     TestCreateRequest, TestUpdateRequest,
@@ -13,6 +12,8 @@ from schemas.tests import (
 from service.course_service import check_course_access
 
 
+# TODO: Тесты создаются, нужно добавить возможность пользователею проходить тесты.
+#  генерацию тестов через нейронку на основе материала после которого идеёт тест
 async def create_test(
         material_id: int, data: TestCreateRequest,
         user: User, db: AsyncSession

@@ -17,8 +17,6 @@ from schemas.auth import MessageResponse
 
 teacher_router = APIRouter(prefix="/teacher", tags=["Teacher"])
 
-# НЕ ТЕСТИЛ НУЖНО ПРОВЕРЯТЬ
-
 
 # COURSES
 @teacher_router.post(
