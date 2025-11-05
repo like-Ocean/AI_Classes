@@ -1,15 +1,20 @@
 from typing import Optional
 from datetime import datetime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Integer, ForeignKey, DateTime, String, text
+from sqlalchemy import Integer, ForeignKey, DateTime, text, Enum as SAEnum
 from core.database import Base
+from .Enums import ApplicationStatus
 
 
 class CourseApplication(Base):
     __tablename__ = "course_applications"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    status: Mapped[str] = mapped_column(String(20), server_default=text("'pending'"), nullable=False)
+    status: Mapped[ApplicationStatus] = mapped_column(
+        SAEnum(ApplicationStatus, name="status"),
+        server_default=text("'pending'"),
+        nullable=False
+    )
     applied_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("NOW()"), nullable=False)
     reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
