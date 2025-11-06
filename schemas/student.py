@@ -1,7 +1,8 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
-from schemas.course import ModuleResponse, MaterialResponse
+from schemas.course import ModuleResponse, MaterialResponse, CourseResponse
+from schemas.user import UserResponse
 from models.Enums import ApplicationStatus
 
 
@@ -13,7 +14,7 @@ class CourseApplicationCreate(BaseModel):
 
 class CourseApplicationResponse(BaseModel):
     id: int
-    course_id: int
+    course: CourseResponse
     user_id: int
     status: ApplicationStatus
     applied_at: datetime
@@ -31,7 +32,7 @@ class CourseCardResponse(BaseModel):
     title: str
     description: Optional[str]
     img_url: Optional[str]
-    creator_id: Optional[int]
+    creator: Optional[UserResponse] = None
     created_at: datetime
     is_enrolled: bool = False
     application_status: Optional[ApplicationStatus] = None

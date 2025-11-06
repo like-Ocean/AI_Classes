@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from models.Enums import MaterialType
+from schemas.user import UserResponse
 from schemas.file import MaterialFileResponse, FileResponse
 
 
@@ -24,7 +25,7 @@ class CourseResponse(BaseModel):
     description: Optional[str]
     img_url: Optional[str]
     created_at: datetime
-    creator_id: Optional[int]
+    creator: Optional[UserResponse] = None
 
     class Config:
         from_attributes = True

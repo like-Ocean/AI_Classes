@@ -4,6 +4,7 @@ from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from typing import Optional
 from datetime import datetime
+from schemas.course import CourseResponse
 from math import ceil
 from models import (
     Course, Module, Material, User, CourseApplication,
@@ -19,7 +20,7 @@ async def get_available_courses(
         search: Optional[str] = None,
         page: int = 1, page_size: int = 20
 ):
-    query = select(Course)
+    query = select(Course).options(selectinload(Course.creator))
     if search:
         search_filter = or_(
             Course.title.ilike(f"%{search}%"),
@@ -68,7 +69,7 @@ async def get_available_courses(
             "title": course.title,
             "description": course.description,
             "img_url": course.img_url,
-            "creator_id": course.creator_id,
+            "creator": course.creator,
             "created_at": course.created_at,
             "is_enrolled": course.id in enrollments,
             "application_status": applications[course.id].status if course.id in applications else None
@@ -86,8 +87,10 @@ async def get_available_courses(
 
 async def get_course_public_detail(course_id: int, user: User, db: AsyncSession):
     result = await db.execute(
-        select(Course).options(selectinload(Course.modules))
-        .where(Course.id == course_id)
+        select(Course).options(
+            selectinload(Course.creator),
+            selectinload(Course.modules)
+        ).where(Course.id == course_id)
     )
     course = result.scalar_one_or_none()
     if not course:
@@ -105,6 +108,7 @@ async def get_course_public_detail(course_id: int, user: User, db: AsyncSession)
         )
     )
     enrollment = enrollment_result.scalar_one_or_none()
+
     application_result = await db.execute(
         select(CourseApplication).where(
             and_(
@@ -117,11 +121,16 @@ async def get_course_public_detail(course_id: int, user: User, db: AsyncSession)
 
     course.modules.sort(key=lambda m: m.position)
 
-    return {
-        "course": course,
-        "is_enrolled": enrollment is not None,
-        "application_status": application.status if application else None
-    }
+    return CourseResponse(
+        id=course.id,
+        title=course.title,
+        description=course.description,
+        img_url=course.img_url,
+        creator=course.creator,
+        created_at=course.created_at,
+        is_enrolled=enrollment is not None,
+        application_status=application.status if application else None
+    )
 
 
 # APPLICATIONS
@@ -176,12 +185,24 @@ async def apply_for_course(course_id: int, user: User, db: AsyncSession):
     await db.commit()
     await db.refresh(application)
 
-    return application
+    result = await db.execute(
+        select(CourseApplication)
+        .options(
+            selectinload(CourseApplication.course).selectinload(Course.creator)
+        )
+        .where(CourseApplication.id == application.id)
+    )
+    application_with_course = result.scalar_one()
+
+    return application_with_course
 
 
 async def get_my_applications(user: User, db: AsyncSession):
     result = await db.execute(
         select(CourseApplication)
+        .options(
+            selectinload(CourseApplication.course).selectinload(Course.creator)
+        )
         .where(CourseApplication.user_id == user.id)
         .order_by(CourseApplication.applied_at.desc())
     )
@@ -214,7 +235,7 @@ async def cancel_application(application_id: int, user: User, db: AsyncSession):
     await db.commit()
 
 
-# MY COURSES
+# MY COURSES TODO: Не тестил всё что ниже
 
 async def get_my_courses(user: User, db: AsyncSession):
     result = await db.execute(

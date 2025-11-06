@@ -14,7 +14,7 @@ from schemas.course import (
 )
 
 
-# TODO: проггресс курса и модуля, так же анализ видео чтобы был текст
+# TODO: анализ видео чтобы был текст
 async def check_course_access(
         course_id: int, user: User,
         db: AsyncSession, require_creator: bool = False

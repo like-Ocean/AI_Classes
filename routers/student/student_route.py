@@ -8,7 +8,7 @@ from models import User
 from schemas.student import (
     CourseApplicationResponse, PaginatedCoursesResponse,
     MyCoursesResponse, LessonProgressResponse,
-    ModuleWithProgressResponse
+    ModuleWithProgressResponse, CourseCardResponse
 )
 from schemas.course import CourseWithModulesResponse
 from schemas.auth import MessageResponse
@@ -46,7 +46,7 @@ async def get_courses_catalog(
 
 @student_router.get(
     "/courses/{course_id}",
-    response_model=dict,
+    response_model=CourseCardResponse,
     summary="Get course public info"
 )
 async def get_course_public_info(

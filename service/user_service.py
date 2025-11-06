@@ -5,8 +5,6 @@ from core.security import verify_password, get_password_hash
 from schemas.user import UserResponse
 
 
-# TODO: Добавить возможность записи на крусы,
-#  просмотра списка всех курсов и курсов на которые уже записан
 async def get_user(user: User):
     return UserResponse.model_validate(user)
 
