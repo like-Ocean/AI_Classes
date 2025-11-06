@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
@@ -5,9 +6,10 @@ from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from models import (
     Course, Module, Material, CourseEditor,
-    User, Role, MaterialFile, File
+    User, Role, MaterialFile, File, CourseApplication,
+    CourseEnrollment
 )
-from models.Enums import RoleType
+from models.Enums import RoleType, ApplicationStatus
 from schemas.course import (
     CourseCreateRequest, CourseUpdateRequest, ModuleCreateRequest,
     ModuleUpdateRequest, MaterialCreateRequest, MaterialUpdateRequest
@@ -71,9 +73,12 @@ async def create_course(data: CourseCreateRequest, creator: User, db: AsyncSessi
 
 
 async def get_my_courses(user: User, db: AsyncSession):
-    creator_query = select(Course).where(Course.creator_id == user.id)
+    creator_query = select(Course).options(
+        selectinload(Course.creator)
+    ).where(Course.creator_id == user.id)
     editor_query = (
         select(Course)
+        .options(selectinload(Course.creator))
         .join(CourseEditor, Course.id == CourseEditor.course_id)
         .where(CourseEditor.user_id == user.id)
     )
@@ -93,7 +98,10 @@ async def get_course_detail(course_id: int, user: User, db: AsyncSession):
     await check_course_access(course_id, user, db)
     result = await db.execute(
         select(Course)
-        .options(selectinload(Course.modules))
+        .options(
+            selectinload(Course.modules),
+            selectinload(Course.creator)
+        )
         .where(Course.id == course_id)
     )
     course = result.scalar_one()
@@ -145,7 +153,11 @@ async def create_module(
     return module
 
 
-async def get_module_detail(module_id: int, user: User, db: AsyncSession):
+async def get_module_detail(
+        course_id: int, module_id: int,
+        user: User, db: AsyncSession
+):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
         select(Module)
         .options(
@@ -153,15 +165,15 @@ async def get_module_detail(module_id: int, user: User, db: AsyncSession):
             .selectinload(Material.material_files)
             .selectinload(MaterialFile.file)
         )
-        .where(Module.id == module_id)
+        .where(and_(Module.id == module_id, Module.course_id == course_id))
     )
     module = result.scalar_one_or_none()
     if not module:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Module not found"
+            detail="Module not found in this course"
         )
-    await check_course_access(module.course_id, user, db)
+
     module.materials.sort(key=lambda mat: mat.position)
     for material in module.materials:
         material.files = material.material_files
@@ -170,20 +182,22 @@ async def get_module_detail(module_id: int, user: User, db: AsyncSession):
 
 
 async def update_module(
-        module_id: int, data: ModuleUpdateRequest,
+        course_id: int, module_id: int,
+        data: ModuleUpdateRequest,
         user: User, db: AsyncSession
 ):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
-        select(Module).where(Module.id == module_id)
+        select(Module).where(
+            and_(Module.id == module_id, Module.course_id == course_id)
+        )
     )
     module = result.scalar_one_or_none()
-
     if not module:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Module not found"
+            detail="Module not found in this course"
         )
-    await check_course_access(module.course_id, user, db)
 
     if data.title is not None:
         module.title = data.title
@@ -196,39 +210,44 @@ async def update_module(
     return module
 
 
-async def delete_module(module_id: int, user: User, db: AsyncSession):
+async def delete_module(
+        course_id: int, module_id: int,
+        user: User, db: AsyncSession
+):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
-        select(Module).where(Module.id == module_id)
+        select(Module).where(
+            and_(Module.id == module_id, Module.course_id == course_id)
+        )
     )
     module = result.scalar_one_or_none()
     if not module:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Module not found"
+            detail="Module not found in this course"
         )
-
-    await check_course_access(module.course_id, user, db)
 
     await db.delete(module)
     await db.commit()
 
 
 async def create_material(
-        module_id: int, data: MaterialCreateRequest,
+        course_id: int, module_id: int,
+        data: MaterialCreateRequest,
         user: User, db: AsyncSession
 ):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
-        select(Module).where(Module.id == module_id)
+        select(Module).where(
+            and_(Module.id == module_id, Module.course_id == course_id)
+        )
     )
     module = result.scalar_one_or_none()
-
     if not module:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Module not found"
+            detail="Module not found in this course"
         )
-
-    await check_course_access(module.course_id, user, db)
 
     material = Material(
         module_id=module_id,
@@ -248,21 +267,29 @@ async def create_material(
 
 
 async def update_material(
-        material_id: int, data: MaterialUpdateRequest,
+        course_id: int, module_id: int,
+        material_id: int,
+        data: MaterialUpdateRequest,
         user: User, db: AsyncSession
 ):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
-        select(Material).join(Module).where(Material.id == material_id)
+        select(Material)
+        .join(Module)
+        .where(
+            and_(
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
     )
     material = result.scalar_one_or_none()
-
     if not material:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Material not found"
+            detail="Material not found in this module"
         )
-
-    await check_course_access(material.module.course_id, user, db)
 
     if data.type is not None:
         material.type = data.type
@@ -283,27 +310,43 @@ async def update_material(
     return material
 
 
-async def delete_material(material_id: int, user: User, db: AsyncSession):
+async def delete_material(
+        course_id: int, module_id: int,
+        material_id: int,
+        user: User, db: AsyncSession
+):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
-        select(Material).join(Module).where(Material.id == material_id)
+        select(Material)
+        .join(Module)
+        .where(
+            and_(
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
     )
     material = result.scalar_one_or_none()
     if not material:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Material not found"
+            detail="Material not found in this module"
         )
-
-    await check_course_access(material.module.course_id, user, db)
 
     await db.delete(material)
     await db.commit()
 
 
-async def add_editor(course_id: int, teacher_id: int, user: User, db: AsyncSession):
+async def add_editor(
+        course_id: int, teacher_id: int,
+        user: User, db: AsyncSession
+):
     course = await check_course_access(course_id, user, db, require_creator=True)
     result = await db.execute(
-        select(User).where(User.id == teacher_id)
+        select(User)
+        .options(selectinload(User.role))
+        .where(User.id == teacher_id)
     )
     teacher = result.scalar_one_or_none()
 
@@ -312,13 +355,7 @@ async def add_editor(course_id: int, teacher_id: int, user: User, db: AsyncSessi
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Teacher not found"
         )
-
-    role_result = await db.execute(
-        select(Role).where(Role.id == teacher.role_id)
-    )
-    role = role_result.scalar_one()
-
-    if role.name not in [RoleType.teacher, RoleType.admin]:
+    if teacher.role.name not in [RoleType.teacher, RoleType.admin]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="User must be a teacher or admin"
@@ -339,8 +376,7 @@ async def add_editor(course_id: int, teacher_id: int, user: User, db: AsyncSessi
         )
 
     editor = CourseEditor(
-        course_id=course_id,
-        user_id=teacher_id,
+        course_id=course_id, user_id=teacher_id,
         granted_by=user.id
     )
 
@@ -348,43 +384,72 @@ async def add_editor(course_id: int, teacher_id: int, user: User, db: AsyncSessi
     await db.commit()
     await db.refresh(editor)
 
-    return editor
+    result = await db.execute(
+        select(CourseEditor)
+        .options(selectinload(CourseEditor.user))
+        .where(CourseEditor.id == editor.id)
+    )
+    editor_loaded = result.scalar_one()
+
+    return editor_loaded
 
 
 async def remove_editor(course_id: int, editor_id: int, user: User, db: AsyncSession):
     await check_course_access(course_id, user, db, require_creator=True)
     result = await db.execute(
-        select(CourseEditor).where(CourseEditor.id == editor_id)
+        select(CourseEditor).where(
+            and_(
+                CourseEditor.id == editor_id,
+                CourseEditor.course_id == course_id
+            )
+        )
     )
     editor = result.scalar_one_or_none()
-
     if not editor:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Editor not found"
+            detail="Editor not found in this course"
         )
 
     await db.delete(editor)
     await db.commit()
 
 
+async def get_course_editors(course_id: int, user: User, db: AsyncSession):
+    await check_course_access(course_id, user, db, require_creator=True)
+    result = await db.execute(
+        select(CourseEditor)
+        .options(selectinload(CourseEditor.user))
+        .where(CourseEditor.course_id == course_id)
+        .order_by(CourseEditor.granted_at.desc())
+    )
+    editors = result.scalars().all()
+    return list(editors)
+
+
 async def attach_files_to_material(
+        course_id: int, module_id: int,
         material_id: int, file_ids: List[int],
         user: User, db: AsyncSession
 ):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
         select(Material)
-        .options(selectinload(Material.module))
-        .where(Material.id == material_id)
+        .join(Module)
+        .where(
+            and_(
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
     )
     material = result.scalar_one_or_none()
     if not material:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Material not found"
+            detail="Material not found in this module"
         )
-
-    await check_course_access(material.module.course_id, user, db)
 
     result = await db.execute(
         select(File).where(File.id.in_(file_ids))
@@ -432,19 +497,28 @@ async def attach_files_to_material(
 
 
 async def detach_file_from_material(
+        course_id: int, module_id: int,
         material_id: int, file_id: int,
         user: User, db: AsyncSession
 ):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
-        select(Material).join(Module).where(Material.id == material_id)
+        select(Material)
+        .join(Module)
+        .where(
+            and_(
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
     )
     material = result.scalar_one_or_none()
     if not material:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Material not found"
+            detail="Material not found in this module"
         )
-    await check_course_access(material.module.course_id, user, db)
 
     result = await db.execute(
         select(MaterialFile).where(
@@ -463,3 +537,135 @@ async def detach_file_from_material(
 
     await db.delete(material_file)
     await db.commit()
+
+
+# APPLICATION MANAGEMENT
+async def get_course_applications(course_id: int, user: User, db: AsyncSession):
+    await check_course_access(course_id, user, db, require_creator=False)
+    result = await db.execute(
+        select(CourseApplication)
+        .options(
+            selectinload(CourseApplication.user),
+            selectinload(CourseApplication.course).selectinload(Course.creator)
+        )
+        .where(CourseApplication.course_id == course_id)
+        .order_by(CourseApplication.applied_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def approve_application(application_id: int, user: User, db: AsyncSession):
+    result = await db.execute(
+        select(CourseApplication)
+        .options(selectinload(CourseApplication.course))
+        .where(CourseApplication.id == application_id)
+    )
+    application = result.scalar_one_or_none()
+    if not application:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Application not found"
+        )
+
+    await check_course_access(application.course_id, user, db, require_creator=False)
+    if application.status != ApplicationStatus.pending:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Application status is already '{application.status}'"
+        )
+
+    enrollment_result = await db.execute(
+        select(CourseEnrollment).where(
+            and_(
+                CourseEnrollment.user_id == application.user_id,
+                CourseEnrollment.course_id == application.course_id
+            )
+        )
+    )
+    if enrollment_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Student is already enrolled in this course"
+        )
+
+    application.status = ApplicationStatus.approved
+    application.reviewed_at = datetime.utcnow()
+    application.reviewed_by = user.id
+
+    enrollment = CourseEnrollment(
+        user_id=application.user_id,
+        course_id=application.course_id
+    )
+
+    db.add(enrollment)
+    await db.commit()
+    await db.refresh(application)
+
+    result = await db.execute(
+        select(CourseApplication)
+        .options(
+            selectinload(CourseApplication.user),
+            selectinload(CourseApplication.course).selectinload(Course.creator)
+        )
+        .where(CourseApplication.id == application.id)
+    )
+    application_loaded = result.scalar_one()
+
+    return {
+        "id": application_loaded.id,
+        "user": application_loaded.user,
+        "course": application_loaded.course,
+        "status": application_loaded.status,
+        "applied_at": application_loaded.applied_at,
+        "reviewed_at": application_loaded.reviewed_at,
+        "reviewed_by": application_loaded.reviewed_by
+    }
+
+
+async def reject_application(application_id: int, user: User, db: AsyncSession):
+    result = await db.execute(
+        select(CourseApplication)
+        .options(selectinload(CourseApplication.course))
+        .where(CourseApplication.id == application_id)
+    )
+    application = result.scalar_one_or_none()
+    if not application:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Application not found"
+        )
+
+    await check_course_access(application.course_id, user, db, require_creator=False)
+
+    if application.status != ApplicationStatus.pending:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Application status is already '{application.status}'"
+        )
+
+    application.status = ApplicationStatus.rejected
+    application.reviewed_at = datetime.utcnow()
+    application.reviewed_by = user.id
+
+    await db.commit()
+    await db.refresh(application)
+
+    result = await db.execute(
+        select(CourseApplication)
+        .options(
+            selectinload(CourseApplication.user),
+            selectinload(CourseApplication.course).selectinload(Course.creator)
+        )
+        .where(CourseApplication.id == application.id)
+    )
+    application_loaded = result.scalar_one()
+
+    return {
+        "id": application_loaded.id,
+        "user": application_loaded.user,
+        "course": application_loaded.course,
+        "status": application_loaded.status,
+        "applied_at": application_loaded.applied_at,
+        "reviewed_at": application_loaded.reviewed_at,
+        "reviewed_by": application_loaded.reviewed_by
+    }

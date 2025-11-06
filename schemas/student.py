@@ -15,7 +15,20 @@ class CourseApplicationCreate(BaseModel):
 class CourseApplicationResponse(BaseModel):
     id: int
     course: CourseResponse
-    user_id: int
+    user: UserResponse
+    status: ApplicationStatus
+    applied_at: datetime
+    reviewed_at: Optional[datetime]
+    reviewed_by: Optional[int]  # ВОЗВРАЩАТЬ ПОЛЬЗОВАТЕЛЯ
+
+    class Config:
+        from_attributes = True
+
+
+class CourseApplicationDetailResponse(BaseModel):
+    id: int
+    user: UserResponse
+    course: CourseResponse
     status: ApplicationStatus
     applied_at: datetime
     reviewed_at: Optional[datetime]

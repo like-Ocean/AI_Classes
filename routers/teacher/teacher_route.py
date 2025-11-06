@@ -12,6 +12,7 @@ from schemas.course import (
     MaterialCreateRequest, MaterialUpdateRequest,
     MaterialResponse, AddEditorRequest, EditorResponse
 )
+from schemas.student import CourseApplicationDetailResponse, CourseApplicationResponse
 from schemas.file import FileResponse, MaterialFileResponse
 from schemas.auth import MessageResponse
 
@@ -118,106 +119,104 @@ async def create_module(
 
 
 @teacher_router.get(
-    "/modules/{module_id}",
+    "/courses/{course_id}/modules/{module_id}",
     response_model=ModuleWithMaterialsResponse,
     summary="Get module with materials"
 )
 async def get_module(
-        module_id: int,
-        current_teacher: User = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db)
+    course_id: int, module_id: int,
+    current_teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db)
 ):
-    module = await course_service.get_module_detail(module_id, current_teacher, db)
+    module = await course_service.get_module_detail(
+        course_id, module_id, current_teacher, db
+    )
     return module
 
 
 @teacher_router.put(
-    "/modules/{module_id}",
+    "/courses/{course_id}/modules/{module_id}",
     response_model=ModuleResponse,
     summary="Update module"
 )
 async def update_module(
-        module_id: int,
-        data: ModuleUpdateRequest,
-        current_teacher: User = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db)
+    course_id: int, module_id: int,
+    data: ModuleUpdateRequest,
+    current_teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db)
 ):
     module = await course_service.update_module(
-        module_id, data, current_teacher, db
+        course_id, module_id, data, current_teacher, db
     )
     return module
 
 
 @teacher_router.delete(
-    "/modules/{module_id}",
+    "/courses/{course_id}/modules/{module_id}",
     response_model=MessageResponse,
     summary="Delete module"
 )
 async def delete_module(
-        module_id: int,
-        current_teacher: User = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db)
+    course_id: int, module_id: int,
+    current_teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db)
 ):
     await course_service.delete_module(
-        module_id, current_teacher, db
+        course_id, module_id, current_teacher, db
     )
-    return MessageResponse(
-        message="Module successfully deleted"
-    )
+    return MessageResponse(message="Module successfully deleted")
 
 
 # MATERIALS
-
 @teacher_router.post(
-    "/modules/{module_id}/materials",
+    "/courses/{course_id}/modules/{module_id}/materials",
     response_model=MaterialResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create material"
 )
 async def create_material(
-        module_id: int,
-        data: MaterialCreateRequest,
-        current_teacher: User = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db)
+    course_id: int, module_id: int,
+    data: MaterialCreateRequest,
+    current_teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db)
 ):
     material = await course_service.create_material(
-        module_id, data, current_teacher, db
+        course_id, module_id, data, current_teacher, db
     )
     return material
 
 
 @teacher_router.put(
-    "/materials/{material_id}",
+    "/courses/{course_id}/modules/{module_id}/materials/{material_id}",
     response_model=MaterialResponse,
     summary="Update material"
 )
 async def update_material(
-        material_id: int, data: MaterialUpdateRequest,
-        current_teacher: User = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db)
+    course_id: int, module_id: int,
+    material_id: int, data: MaterialUpdateRequest,
+    current_teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db)
 ):
     material = await course_service.update_material(
-        material_id, data, current_teacher, db
+        course_id, module_id, material_id, data, current_teacher, db
     )
     return material
 
 
 @teacher_router.delete(
-    "/materials/{material_id}",
+    "/courses/{course_id}/modules/{module_id}/materials/{material_id}",
     response_model=MessageResponse,
     summary="Delete material"
 )
 async def delete_material(
-        material_id: int,
-        current_teacher: User = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db)
+    course_id: int, module_id: int, material_id: int,
+    current_teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db)
 ):
     await course_service.delete_material(
-        material_id, current_teacher, db
+        course_id, module_id, material_id, current_teacher, db
     )
-    return MessageResponse(
-        message="Material successfully deleted"
-    )
+    return MessageResponse(message="Material successfully deleted")
 
 
 # EDITORS
@@ -257,6 +256,22 @@ async def remove_editor(
     )
 
 
+@teacher_router.get(
+    "/courses/{course_id}/editors",
+    response_model=List[EditorResponse],
+    summary="Get course editors"
+)
+async def get_editors(
+        course_id: int,
+        current_teacher: User = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db)
+):
+    editors = await course_service.get_course_editors(
+        course_id, current_teacher, db
+    )
+    return editors
+
+
 # FILES
 @teacher_router.post(
     "/files/upload",
@@ -277,32 +292,82 @@ async def upload_file(
 #     Сначала загрузить файлы через /files/upload,
 #     затем прикрепите их к материалу по ID.
 @teacher_router.post(
-    "/materials/{material_id}/files",
+    "/courses/{course_id}/modules/{module_id}/materials/{material_id}/files",
     response_model=List[MaterialFileResponse],
     summary="Attach files to material"
 )
 async def attach_files(
-        material_id: int, file_ids: List[int],
-        current_teacher: User = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db)
+    course_id: int, module_id: int,
+    material_id: int, file_ids: List[int],
+    current_teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db)
 ):
     material_files = await course_service.attach_files_to_material(
-        material_id, file_ids, current_teacher, db
+        course_id, module_id, material_id, file_ids, current_teacher, db
     )
     return material_files
 
 
 @teacher_router.delete(
-    "/materials/{material_id}/files/{file_id}",
+    "/courses/{course_id}/modules/{module_id}/materials/{material_id}/files/{file_id}",
     response_model=MessageResponse,
     summary="Detach file from material"
 )
 async def detach_file(
+    course_id: int, module_id: int,
     material_id: int, file_id: int,
     current_teacher: User = Depends(get_current_teacher),
     db: AsyncSession = Depends(get_db)
 ):
     await course_service.detach_file_from_material(
-        material_id, file_id, current_teacher, db
+        course_id, module_id, material_id, file_id, current_teacher, db
     )
     return MessageResponse(message="File detached successfully")
+
+
+@teacher_router.get(
+    "/courses/{course_id}/applications",
+    response_model=List[CourseApplicationResponse],
+    summary="Get course applications"
+)
+async def get_applications(
+        course_id: int,
+        current_teacher: User = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db)
+):
+    applications = await course_service.get_course_applications(
+        course_id, current_teacher, db
+    )
+    return applications
+
+
+@teacher_router.post(
+    "/applications/{application_id}/approve",
+    response_model=CourseApplicationDetailResponse,
+    summary="Approve application"
+)
+async def approve_application(
+        application_id: int,
+        current_teacher: User = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db)
+):
+    result = await course_service.approve_application(
+        application_id, current_teacher, db
+    )
+    return result
+
+
+@teacher_router.post(
+    "/applications/{application_id}/reject",
+    response_model=CourseApplicationDetailResponse,
+    summary="Reject application"
+)
+async def reject_application(
+        application_id: int,
+        current_teacher: User = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db)
+):
+    result = await course_service.reject_application(
+        application_id, current_teacher, db
+    )
+    return result

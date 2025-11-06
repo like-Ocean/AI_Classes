@@ -109,7 +109,7 @@ class AddEditorRequest(BaseModel):
 
 class EditorResponse(BaseModel):
     id: int
-    user_id: int
+    user: UserResponse
     course_id: int
     granted_at: datetime
     granted_by: Optional[int]
