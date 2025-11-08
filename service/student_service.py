@@ -7,10 +7,116 @@ from datetime import datetime
 from schemas.course import CourseResponse
 from math import ceil
 from models import (
-    Course, Module, Material, User, CourseApplication,
+    Course, Module, Material, User, CourseApplication, TestAttempt,
     CourseEnrollment, CourseProgress, LessonProgress, MaterialFile
 )
 from models.Enums import ApplicationStatus
+
+
+async def check_material_access(
+        course_id: int, module_id: int,
+        material_id: int, user: User,
+        db: AsyncSession
+) -> dict:
+    """
+    Проверка доступа к материалу.
+    Материал доступен только если:
+    1. Пользователь записан на курс
+    2. Предыдущий материал пройден (если есть тест - сдан)
+    """
+    enrollment_result = await db.execute(
+        select(CourseEnrollment).where(
+            and_(
+                CourseEnrollment.user_id == user.id,
+                CourseEnrollment.course_id == course_id
+            )
+        )
+    )
+    if not enrollment_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not enrolled in this course"
+        )
+
+    result = await db.execute(
+        select(Material)
+        .options(selectinload(Material.tests))
+        .join(Module)
+        .where(
+            and_(
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
+    )
+    material = result.scalar_one_or_none()
+
+    if not material:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Material not found"
+        )
+
+    all_materials_result = await db.execute(
+        select(Material)
+        .options(selectinload(Material.tests))
+        .where(Material.module_id == module_id)
+        .order_by(Material.position)
+    )
+    all_materials = list(all_materials_result.scalars().all())
+
+    current_position = next(
+        (i for i, m in enumerate(all_materials) if m.id == material_id),
+        None
+    )
+
+    if current_position is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Material not found in module"
+        )
+
+    if current_position > 0:
+        previous_material = all_materials[current_position - 1]
+        if previous_material.tests:
+            for test in previous_material.tests:
+                passed_attempt_result = await db.execute(
+                    select(TestAttempt).where(
+                        and_(
+                            TestAttempt.test_id == test.id,
+                            TestAttempt.user_id == user.id,
+                            TestAttempt.passed == True
+                        )
+                    )
+                )
+                passed_attempt = passed_attempt_result.scalar_one_or_none()
+
+                if not passed_attempt:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=f"You must pass the test in '{previous_material.title}' before accessing this material"
+                    )
+        else:
+            progress_result = await db.execute(
+                select(LessonProgress).where(
+                    and_(
+                        LessonProgress.user_id == user.id,
+                        LessonProgress.lesson_id == previous_material.id
+                    )
+                )
+            )
+            progress = progress_result.scalar_one_or_none()
+            if not progress:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"You must complete '{previous_material.title}' before accessing this material"
+                )
+
+    return {
+        "access_granted": True,
+        "material": material
+    }
 
 
 # COURSE CATALOG
@@ -332,16 +438,20 @@ async def get_module_with_progress(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not enrolled in this course"
         )
+
     result = await db.execute(
         select(Module)
         .options(
             selectinload(Module.materials)
             .selectinload(Material.material_files)
-            .selectinload(MaterialFile.file)
+            .selectinload(MaterialFile.file),
+            selectinload(Module.materials)
+            .selectinload(Material.tests)
         )
         .where(and_(Module.id == module_id, Module.course_id == course_id))
     )
     module = result.scalar_one_or_none()
+
     if not module:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -359,25 +469,64 @@ async def get_module_with_progress(
     )
     progress_map = {p.lesson_id: p for p in progress_result.scalars().all()}
 
+    test_ids = []
+    for material in module.materials:
+        test_ids.extend([t.id for t in material.tests])
+
+    if test_ids:
+        passed_tests_result = await db.execute(
+            select(TestAttempt.test_id).where(
+                and_(
+                    TestAttempt.test_id.in_(test_ids),
+                    TestAttempt.user_id == user.id,
+                    TestAttempt.passed == True
+                )
+            )
+        )
+        passed_test_ids = {row[0] for row in passed_tests_result.all()}
+    else:
+        passed_test_ids = set()
     module.materials.sort(key=lambda m: m.position)
 
     materials_data = []
     completed_count = 0
 
-    for material in module.materials:
+    for i, material in enumerate(module.materials):
         progress = progress_map.get(material.id)
         is_completed = progress is not None
+        has_tests = len(material.tests) > 0
 
         if is_completed:
             completed_count += 1
+        is_locked = False
+        lock_reason = None
+
+        if i > 0:
+            previous_material = module.materials[i - 1]
+            if previous_material.tests:
+                has_passed_test = any(
+                    test.id in passed_test_ids
+                    for test in previous_material.tests
+                )
+
+                if not has_passed_test:
+                    is_locked = True
+                    lock_reason = f"Complete the test in '{previous_material.title}' to unlock"
+            else:
+                if previous_material.id not in progress_map:
+                    is_locked = True
+                    lock_reason = f"Complete '{previous_material.title}' to unlock"
 
         material_dict = {
             "material_id": material.id,
             "title": material.title,
-            "type": material.type,
+            "type": material.type.value,
             "position": material.position,
             "is_completed": is_completed,
-            "completed_at": progress.completed_at if progress else None
+            "completed_at": progress.completed_at if progress else None,
+            "is_locked": is_locked,
+            "lock_reason": lock_reason,
+            "has_tests": has_tests
         }
         materials_data.append(material_dict)
 

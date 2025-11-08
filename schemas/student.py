@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from schemas.course import CourseResponse
@@ -112,6 +112,18 @@ class MaterialProgressInfo(BaseModel):
     position: int
     is_completed: bool
     completed_at: Optional[datetime] = None
+    is_locked: bool = Field(
+        default=False,
+        description="Заблокирован ли доступ к материалу"
+    )
+    lock_reason: Optional[str] = Field(
+        None,
+        description="Причина блокировки"
+    )
+    has_tests: bool = Field(
+        default=False,
+        description="Есть ли тесты у материала"
+    )
 
 
 class ModuleWithProgressResponse(BaseModel):
