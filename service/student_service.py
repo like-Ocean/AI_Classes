@@ -201,7 +201,8 @@ async def get_my_applications(user: User, db: AsyncSession):
     result = await db.execute(
         select(CourseApplication)
         .options(
-            selectinload(CourseApplication.course).selectinload(Course.creator)
+            selectinload(CourseApplication.course).selectinload(Course.creator),
+            selectinload(CourseApplication.reviewer)
         )
         .where(CourseApplication.user_id == user.id)
         .order_by(CourseApplication.applied_at.desc())
@@ -235,7 +236,7 @@ async def cancel_application(application_id: int, user: User, db: AsyncSession):
     await db.commit()
 
 
-# MY COURSES TODO: Не тестил всё что ниже
+# MY COURSES
 
 async def get_my_courses(user: User, db: AsyncSession):
     result = await db.execute(
@@ -285,7 +286,6 @@ async def get_my_courses(user: User, db: AsyncSession):
 
 
 async def get_enrolled_course_detail(course_id: int, user: User, db: AsyncSession):
-    # Получение детальной информации о курсе (только для записанных студентов)
     enrollment_result = await db.execute(
         select(CourseEnrollment).where(
             and_(
@@ -303,7 +303,10 @@ async def get_enrolled_course_detail(course_id: int, user: User, db: AsyncSessio
 
     result = await db.execute(
         select(Course)
-        .options(selectinload(Course.modules))
+        .options(
+            selectinload(Course.creator),
+            selectinload(Course.modules)
+        )
         .where(Course.id == course_id)
     )
     course = result.scalar_one()
@@ -312,28 +315,15 @@ async def get_enrolled_course_detail(course_id: int, user: User, db: AsyncSessio
     return course
 
 
-async def get_module_with_progress(module_id: int, user: User, db: AsyncSession):
-    result = await db.execute(
-        select(Module)
-        .options(
-            selectinload(Module.materials)
-            .selectinload(Material.material_files)
-            .selectinload(MaterialFile.file)
-        )
-        .where(Module.id == module_id)
-    )
-    module = result.scalar_one_or_none()
-    if not module:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Module not found"
-        )
-
+async def get_module_with_progress(
+        course_id: int, module_id: int,
+        user: User, db: AsyncSession
+):
     enrollment_result = await db.execute(
         select(CourseEnrollment).where(
             and_(
                 CourseEnrollment.user_id == user.id,
-                CourseEnrollment.course_id == module.course_id
+                CourseEnrollment.course_id == course_id
             )
         )
     )
@@ -341,6 +331,21 @@ async def get_module_with_progress(module_id: int, user: User, db: AsyncSession)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not enrolled in this course"
+        )
+    result = await db.execute(
+        select(Module)
+        .options(
+            selectinload(Module.materials)
+            .selectinload(Material.material_files)
+            .selectinload(MaterialFile.file)
+        )
+        .where(and_(Module.id == module_id, Module.course_id == course_id))
+    )
+    module = result.scalar_one_or_none()
+    if not module:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Module not found in this course"
         )
 
     material_ids = [m.id for m in module.materials]
@@ -391,25 +396,12 @@ async def get_module_with_progress(module_id: int, user: User, db: AsyncSession)
     }
 
 
-# PROGRESS
-
-async def mark_material_completed(material_id: int, user: User, db: AsyncSession):
-    result = await db.execute(
-        select(Material).options(selectinload(Material.module))
-        .where(Material.id == material_id)
-    )
-    material = result.scalar_one_or_none()
-    if not material:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Material not found"
-        )
-
+async def get_course_modules_with_progress(course_id: int, user: User, db: AsyncSession):
     enrollment_result = await db.execute(
         select(CourseEnrollment).where(
             and_(
                 CourseEnrollment.user_id == user.id,
-                CourseEnrollment.course_id == material.module.course_id
+                CourseEnrollment.course_id == course_id
             )
         )
     )
@@ -417,6 +409,123 @@ async def mark_material_completed(material_id: int, user: User, db: AsyncSession
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not enrolled in this course"
+        )
+
+    result = await db.execute(
+        select(Module)
+        .options(selectinload(Module.materials))
+        .where(Module.course_id == course_id)
+        .order_by(Module.position)
+    )
+    modules = result.scalars().all()
+
+    material_ids = []
+    for module in modules:
+        material_ids.extend([m.id for m in module.materials])
+
+    progress_result = await db.execute(
+        select(LessonProgress).where(
+            and_(
+                LessonProgress.user_id == user.id,
+                LessonProgress.lesson_id.in_(material_ids)
+            )
+        )
+    )
+    progress_map = {p.lesson_id: p for p in progress_result.scalars().all()}
+
+    modules_data = []
+    total_materials = 0
+    total_completed = 0
+
+    for module in modules:
+        module.materials.sort(key=lambda m: m.position)
+
+        materials_data = []
+        completed_count = 0
+
+        for material in module.materials:
+            progress = progress_map.get(material.id)
+            is_completed = progress is not None
+
+            if is_completed:
+                completed_count += 1
+                total_completed += 1
+
+            total_materials += 1
+
+            material_dict = {
+                "material_id": material.id,
+                "title": material.title,
+                "type": material.type,
+                "position": material.position,
+                "is_completed": is_completed,
+                "completed_at": progress.completed_at if progress else None
+            }
+            materials_data.append(material_dict)
+
+        progress_percentage = (
+            (completed_count / len(module.materials) * 100)
+            if module.materials else 0
+        )
+
+        module_dict = {
+            "id": module.id,
+            "title": module.title,
+            "position": module.position,
+            "course_id": module.course_id,
+            "materials": materials_data,
+            "progress_percentage": round(progress_percentage, 2)
+        }
+        modules_data.append(module_dict)
+
+    overall_progress = (
+        (total_completed / total_materials * 100)
+        if total_materials > 0 else 0
+    )
+
+    return {
+        "course_id": course_id,
+        "modules": modules_data,
+        "overall_progress": round(overall_progress, 2)
+    }
+
+
+# PROGRESS
+
+async def mark_material_completed(
+        course_id: int, module_id: int,
+        material_id: int, user: User,
+        db: AsyncSession
+):
+    enrollment_result = await db.execute(
+        select(CourseEnrollment).where(
+            and_(
+                CourseEnrollment.user_id == user.id,
+                CourseEnrollment.course_id == course_id
+            )
+        )
+    )
+    if not enrollment_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not enrolled in this course"
+        )
+    result = await db.execute(
+        select(Material)
+        .join(Module)
+        .where(
+            and_(
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
+    )
+    material = result.scalar_one_or_none()
+    if not material:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Material not found in this module"
         )
 
     progress_result = await db.execute(
@@ -437,7 +546,7 @@ async def mark_material_completed(material_id: int, user: User, db: AsyncSession
     await db.commit()
     await db.refresh(progress)
 
-    await update_course_progress(user.id, material.module.course_id, db)
+    await update_course_progress(user.id, course_id, db)
 
     return progress
 

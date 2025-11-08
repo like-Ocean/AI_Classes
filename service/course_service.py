@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from models import (
     Course, Module, Material, CourseEditor,
-    User, Role, MaterialFile, File, CourseApplication,
+    User, MaterialFile, File, CourseApplication,
     CourseEnrollment
 )
 from models.Enums import RoleType, ApplicationStatus
@@ -546,7 +546,8 @@ async def get_course_applications(course_id: int, user: User, db: AsyncSession):
         select(CourseApplication)
         .options(
             selectinload(CourseApplication.user),
-            selectinload(CourseApplication.course).selectinload(Course.creator)
+            selectinload(CourseApplication.course).selectinload(Course.creator),
+            selectinload(CourseApplication.reviewer)
         )
         .where(CourseApplication.course_id == course_id)
         .order_by(CourseApplication.applied_at.desc())
@@ -605,7 +606,8 @@ async def approve_application(application_id: int, user: User, db: AsyncSession)
         select(CourseApplication)
         .options(
             selectinload(CourseApplication.user),
-            selectinload(CourseApplication.course).selectinload(Course.creator)
+            selectinload(CourseApplication.course).selectinload(Course.creator),
+            selectinload(CourseApplication.reviewer)
         )
         .where(CourseApplication.id == application.id)
     )
@@ -618,7 +620,7 @@ async def approve_application(application_id: int, user: User, db: AsyncSession)
         "status": application_loaded.status,
         "applied_at": application_loaded.applied_at,
         "reviewed_at": application_loaded.reviewed_at,
-        "reviewed_by": application_loaded.reviewed_by
+        "reviewed_by": application_loaded.reviewer
     }
 
 
@@ -654,7 +656,8 @@ async def reject_application(application_id: int, user: User, db: AsyncSession):
         select(CourseApplication)
         .options(
             selectinload(CourseApplication.user),
-            selectinload(CourseApplication.course).selectinload(Course.creator)
+            selectinload(CourseApplication.course).selectinload(Course.creator),
+            selectinload(CourseApplication.reviewer)
         )
         .where(CourseApplication.id == application.id)
     )
@@ -667,5 +670,5 @@ async def reject_application(application_id: int, user: User, db: AsyncSession):
         "status": application_loaded.status,
         "applied_at": application_loaded.applied_at,
         "reviewed_at": application_loaded.reviewed_at,
-        "reviewed_by": application_loaded.reviewed_by
+        "reviewed_by": application_loaded.reviewer
     }

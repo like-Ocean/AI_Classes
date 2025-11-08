@@ -8,20 +8,16 @@ from models import User
 from schemas.student import (
     CourseApplicationResponse, PaginatedCoursesResponse,
     MyCoursesResponse, LessonProgressResponse,
-    ModuleWithProgressResponse, CourseCardResponse
+    ModuleWithProgressResponse, CourseCardResponse,
+    CourseModulesWithProgressResponse
 )
 from schemas.course import CourseWithModulesResponse
 from schemas.auth import MessageResponse
 
 student_router = APIRouter(prefix="/student", tags=["Student"])
 
-# TODO: Сдлать так чтобы препод или админ могли примнимать заявку студента(
-#  одобрить\изменить её статус с pending на другой)
 
-
-# НЕ ТЕСТИЛ
 # COURSE CATALOG
-
 @student_router.get(
     "/courses",
     response_model=PaginatedCoursesResponse,
@@ -127,6 +123,7 @@ async def get_my_courses(
     return data
 
 
+# Возможно нужно удалить так как есть get_course_modules(Get all course modules with progress)
 @student_router.get(
     "/my-courses/{course_id}",
     response_model=CourseWithModulesResponse,
@@ -144,34 +141,50 @@ async def get_enrolled_course(
 
 
 @student_router.get(
-    "/modules/{module_id}",
+    "/my-courses/{course_id}/modules/{module_id}",
     response_model=ModuleWithProgressResponse,
     summary="Get module with progress"
 )
 async def get_module(
-        module_id: int,
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    course_id: int, module_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     data = await student_service.get_module_with_progress(
-        module_id, current_user, db
+        course_id, module_id, current_user, db
+    )
+    return data
+
+
+@student_router.get(
+    "/my-courses/{course_id}/modules",
+    response_model=CourseModulesWithProgressResponse,
+    summary="Get all course modules with progress"
+)
+async def get_course_modules(
+    course_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    data = await student_service.get_course_modules_with_progress(
+        course_id, current_user, db
     )
     return data
 
 
 # PROGRESS
-
 @student_router.post(
-    "/materials/{material_id}/complete",
+    "/my-courses/{course_id}/modules/{module_id}/materials/{material_id}/complete",
     response_model=LessonProgressResponse,
     summary="Mark material as completed"
 )
 async def complete_material(
-        material_id: int,
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    course_id: int, module_id: int,
+    material_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     progress = await student_service.mark_material_completed(
-        material_id, current_user, db
+        course_id, module_id, material_id, current_user, db
     )
     return progress

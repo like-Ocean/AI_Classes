@@ -1,8 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
-from models import Test, Question, AnswerOption, Material, User
+from models import Test, Question, AnswerOption, Material, User, Module
 from models.Enums import QuestionType
 from schemas.tests import (
     TestCreateRequest, TestUpdateRequest,
@@ -14,22 +14,33 @@ from service.course_service import check_course_access
 
 # TODO: Тесты создаются, нужно добавить возможность пользователею проходить тесты.
 #  генерацию тестов через нейронку на основе материала после которого идеёт тест
+
+# TESTS
 async def create_test(
-        material_id: int, data: TestCreateRequest,
+        course_id: int, module_id: int,
+        material_id: int,
+        data: TestCreateRequest,
         user: User, db: AsyncSession
 ):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
         select(Material)
-        .options(selectinload(Material.module))
-        .where(Material.id == material_id)
+        .join(Module)
+        .where(
+            and_(
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
     )
     material = result.scalar_one_or_none()
     if not material:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Material not found"
+            detail="Material not found in this module"
         )
-    await check_course_access(material.module.course_id, user, db)
+
     test = Test(
         title=data.title,
         num_questions=data.num_questions,
@@ -38,9 +49,10 @@ async def create_test(
         status=data.status,
         generated_by_nn=False,
         created_by=user.id,
-        module_id=material.module_id,
+        module_id=module_id,
         material_id=material_id
     )
+
     db.add(test)
     await db.commit()
     await db.refresh(test)
@@ -48,13 +60,27 @@ async def create_test(
     return test
 
 
-async def get_test_detail(test_id: int, user: User, db: AsyncSession):
+async def get_test_detail(
+        course_id: int, module_id: int,
+        material_id: int, test_id: int,
+        user: User, db: AsyncSession
+):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
         select(Test)
         .options(
             selectinload(Test.questions).selectinload(Question.options)
         )
-        .where(Test.id == test_id)
+        .join(Material)
+        .join(Module)
+        .where(
+            and_(
+                Test.id == test_id,
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
     )
     test = result.scalar_one_or_none()
     if not test:
@@ -62,36 +88,38 @@ async def get_test_detail(test_id: int, user: User, db: AsyncSession):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Test not found"
         )
-    if test.material_id:
-        result = await db.execute(
-            select(Material)
-            .options(selectinload(Material.module))
-            .where(Material.id == test.material_id)
-        )
-        material = result.scalar_one()
-        await check_course_access(material.module.course_id, user, db)
 
     test.questions.sort(key=lambda q: q.position)
 
     return test
 
 
-async def update_test(test_id: int, data: TestUpdateRequest, user: User, db: AsyncSession):
-    result = await db.execute(select(Test).where(Test.id == test_id))
+async def update_test(
+        course_id: int, module_id: int,
+        material_id: int, test_id: int,
+        data: TestUpdateRequest,
+        user: User, db: AsyncSession
+):
+    await check_course_access(course_id, user, db)
+    result = await db.execute(
+        select(Test)
+        .join(Material)
+        .join(Module)
+        .where(
+            and_(
+                Test.id == test_id,
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
+    )
     test = result.scalar_one_or_none()
     if not test:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Test not found"
         )
-    if test.material_id:
-        result = await db.execute(
-            select(Material)
-            .options(selectinload(Material.module))
-            .where(Material.id == test.material_id)
-        )
-        material = result.scalar_one()
-        await check_course_access(material.module.course_id, user, db)
 
     if data.title is not None:
         test.title = data.title
@@ -115,23 +143,31 @@ async def update_test(test_id: int, data: TestUpdateRequest, user: User, db: Asy
     return test
 
 
-async def delete_test(test_id: int, user: User, db: AsyncSession):
-    result = await db.execute(select(Test).where(Test.id == test_id))
+async def delete_test(
+        course_id: int, module_id: int,
+        material_id: int, test_id: int,
+        user: User, db: AsyncSession
+):
+    await check_course_access(course_id, user, db)
+    result = await db.execute(
+        select(Test)
+        .join(Material)
+        .join(Module)
+        .where(
+            and_(
+                Test.id == test_id,
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
+    )
     test = result.scalar_one_or_none()
     if not test:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Test not found"
         )
-
-    if test.material_id:
-        result = await db.execute(
-            select(Material)
-            .options(selectinload(Material.module))
-            .where(Material.id == test.material_id)
-        )
-        material = result.scalar_one()
-        await check_course_access(material.module.course_id, user, db)
 
     await db.delete(test)
     await db.commit()
@@ -140,11 +176,24 @@ async def delete_test(test_id: int, user: User, db: AsyncSession):
 # QUESTIONS
 
 async def create_question(
-        test_id: int, data: QuestionCreateRequest,
+        course_id: int, module_id: int,
+        material_id: int, test_id: int,
+        data: QuestionCreateRequest,
         user: User, db: AsyncSession
 ):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
-        select(Test).where(Test.id == test_id)
+        select(Test)
+        .join(Material)
+        .join(Module)
+        .where(
+            and_(
+                Test.id == test_id,
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
     )
     test = result.scalar_one_or_none()
     if not test:
@@ -152,14 +201,6 @@ async def create_question(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Test not found"
         )
-    if test.material_id:
-        result = await db.execute(
-            select(Material)
-            .options(selectinload(Material.module))
-            .where(Material.id == test.material_id)
-        )
-        material = result.scalar_one()
-        await check_course_access(material.module.course_id, user, db)
 
     if data.type in [QuestionType.single, QuestionType.multiple]:
         if not data.options or len(data.options) < 2:
@@ -168,13 +209,11 @@ async def create_question(
                 detail=f"Question type '{data.type}' requires at least 2 options"
             )
         correct_count = sum(1 for opt in data.options if opt.is_correct)
-
         if data.type == QuestionType.single and correct_count != 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Single choice question must have exactly 1 correct answer"
             )
-
         if data.type == QuestionType.multiple and correct_count < 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -215,13 +254,28 @@ async def create_question(
 
 
 async def update_question(
-        question_id: int, data: QuestionUpdateRequest,
+        course_id: int, module_id: int,
+        material_id: int, test_id: int,
+        question_id: int,
+        data: QuestionUpdateRequest,
         user: User, db: AsyncSession
 ):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
         select(Question)
-        .options(selectinload(Question.test))
-        .where(Question.id == question_id)
+        .options(selectinload(Question.options))
+        .join(Test)
+        .join(Material)
+        .join(Module)
+        .where(
+            and_(
+                Question.id == question_id,
+                Test.id == test_id,
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
     )
     question = result.scalar_one_or_none()
     if not question:
@@ -230,15 +284,20 @@ async def update_question(
             detail="Question not found"
         )
 
-    test = question.test
-    if test.material_id:
-        result = await db.execute(
-            select(Material)
-            .options(selectinload(Material.module))
-            .where(Material.id == test.material_id)
-        )
-        material = result.scalar_one()
-        await check_course_access(material.module.course_id, user, db)
+    if data.type is not None and data.type == QuestionType.single:
+        correct_count = sum(1 for opt in question.options if opt.is_correct)
+        if correct_count > 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot change to single_choice: question has {correct_count} "
+                       "correct answers. Single choice questions must have exactly 1 correct answer."
+            )
+        if correct_count == 0 and question.options:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot change to single_choice: question has no correct answers. "
+                       "Single choice questions must have exactly 1 correct answer."
+            )
 
     if data.text is not None:
         question.text = data.text
@@ -255,11 +314,27 @@ async def update_question(
     return question
 
 
-async def delete_question(question_id: int, user: User, db: AsyncSession):
+async def delete_question(
+        course_id: int, module_id: int,
+        material_id: int, test_id: int,
+        question_id: int, user: User,
+        db: AsyncSession
+):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
         select(Question)
-        .options(selectinload(Question.test))
-        .where(Question.id == question_id)
+        .join(Test)
+        .join(Material)
+        .join(Module)
+        .where(
+            and_(
+                Question.id == question_id,
+                Test.id == test_id,
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
     )
     question = result.scalar_one_or_none()
     if not question:
@@ -267,16 +342,6 @@ async def delete_question(question_id: int, user: User, db: AsyncSession):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Question not found"
         )
-
-    test = question.test
-    if test.material_id:
-        result = await db.execute(
-            select(Material)
-            .options(selectinload(Material.module))
-            .where(Material.id == test.material_id)
-        )
-        material = result.scalar_one()
-        await check_course_access(material.module.course_id, user, db)
 
     await db.delete(question)
     await db.commit()
@@ -285,13 +350,27 @@ async def delete_question(question_id: int, user: User, db: AsyncSession):
 # ANSWER
 
 async def add_answer_option(
+        course_id: int, module_id: int,
+        material_id: int, test_id: int,
         question_id: int, data: AnswerOptionCreate,
         user: User, db: AsyncSession
 ):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
         select(Question)
-        .options(selectinload(Question.test))
-        .where(Question.id == question_id)
+        .options(selectinload(Question.options))
+        .join(Test)
+        .join(Material)
+        .join(Module)
+        .where(
+            and_(
+                Question.id == question_id,
+                Test.id == test_id,
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
     )
     question = result.scalar_one_or_none()
     if not question:
@@ -299,16 +378,14 @@ async def add_answer_option(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Question not found"
         )
-
-    test = question.test
-    if test.material_id:
-        result = await db.execute(
-            select(Material)
-            .options(selectinload(Material.module))
-            .where(Material.id == test.material_id)
-        )
-        material = result.scalar_one()
-        await check_course_access(material.module.course_id, user, db)
+    if question.type == QuestionType.single and data.is_correct:
+        existing_correct = any(opt.is_correct for opt in question.options)
+        if existing_correct:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Single choice question can have only one correct answer. "
+                       "Please mark the existing correct answer as incorrect first."
+            )
 
     option = AnswerOption(
         question_id=question_id,
@@ -324,15 +401,32 @@ async def add_answer_option(
 
 
 async def update_answer_option(
-        option_id: int, data: AnswerOptionUpdate,
+        course_id: int, module_id: int,
+        material_id: int, test_id: int,
+        question_id: int, option_id: int,
+        data: AnswerOptionUpdate,
         user: User, db: AsyncSession
 ):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
         select(AnswerOption)
         .options(
-            selectinload(AnswerOption.question).selectinload(Question.test)
+            selectinload(AnswerOption.question).selectinload(Question.options)
         )
-        .where(AnswerOption.id == option_id)
+        .join(Question)
+        .join(Test)
+        .join(Material)
+        .join(Module)
+        .where(
+            and_(
+                AnswerOption.id == option_id,
+                Question.id == question_id,
+                Test.id == test_id,
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
     )
     option = result.scalar_one_or_none()
     if not option:
@@ -340,16 +434,18 @@ async def update_answer_option(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Answer option not found"
         )
-
-    test = option.question.test
-    if test.material_id:
-        result = await db.execute(
-            select(Material)
-            .options(selectinload(Material.module))
-            .where(Material.id == test.material_id)
+    if data.is_correct is not None and data.is_correct and \
+            option.question.type == QuestionType.single:
+        other_correct = any(
+            opt.is_correct and opt.id != option_id
+            for opt in option.question.options
         )
-        material = result.scalar_one()
-        await check_course_access(material.module.course_id, user, db)
+        if other_correct:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Single choice question can have only one correct answer. "
+                       "Please mark the existing correct answer as incorrect first."
+            )
 
     if data.content is not None:
         option.content = data.content
@@ -362,13 +458,29 @@ async def update_answer_option(
     return option
 
 
-async def delete_answer_option(option_id: int, user: User, db: AsyncSession):
+async def delete_answer_option(
+        course_id: int, module_id: int,
+        material_id: int, test_id: int,
+        question_id: int, option_id: int,
+        user: User, db: AsyncSession
+):
+    await check_course_access(course_id, user, db)
     result = await db.execute(
         select(AnswerOption)
-        .options(
-            selectinload(AnswerOption.question).selectinload(Question.test)
+        .join(Question)
+        .join(Test)
+        .join(Material)
+        .join(Module)
+        .where(
+            and_(
+                AnswerOption.id == option_id,
+                Question.id == question_id,
+                Test.id == test_id,
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
         )
-        .where(AnswerOption.id == option_id)
     )
     option = result.scalar_one_or_none()
     if not option:
@@ -376,15 +488,6 @@ async def delete_answer_option(option_id: int, user: User, db: AsyncSession):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Answer option not found"
         )
-    test = option.question.test
-    if test.material_id:
-        result = await db.execute(
-            select(Material)
-            .options(selectinload(Material.module))
-            .where(Material.id == test.material_id)
-        )
-        material = result.scalar_one()
-        await check_course_access(material.module.course_id, user, db)
 
     await db.delete(option)
     await db.commit()

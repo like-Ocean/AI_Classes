@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
-from schemas.course import ModuleResponse, MaterialResponse, CourseResponse
+from schemas.course import CourseResponse
 from schemas.user import UserResponse
 from models.Enums import ApplicationStatus
 
@@ -19,7 +19,7 @@ class CourseApplicationResponse(BaseModel):
     status: ApplicationStatus
     applied_at: datetime
     reviewed_at: Optional[datetime]
-    reviewed_by: Optional[int]  # ВОЗВРАЩАТЬ ПОЛЬЗОВАТЕЛЯ
+    reviewer: Optional[UserResponse] = None
 
     class Config:
         from_attributes = True
@@ -32,7 +32,7 @@ class CourseApplicationDetailResponse(BaseModel):
     status: ApplicationStatus
     applied_at: datetime
     reviewed_at: Optional[datetime]
-    reviewed_by: Optional[int]
+    reviewer: Optional[UserResponse] = None
 
     class Config:
         from_attributes = True
@@ -121,3 +121,9 @@ class ModuleWithProgressResponse(BaseModel):
     course_id: int
     materials: List[MaterialProgressInfo] = []
     progress_percentage: float = 0.0
+
+
+class CourseModulesWithProgressResponse(BaseModel):
+    course_id: int
+    modules: List[ModuleWithProgressResponse] = []
+    overall_progress: float = 0.0
