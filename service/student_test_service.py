@@ -4,6 +4,11 @@ from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from typing import Dict, Any, List
 from datetime import datetime, timedelta
+from helpers.test_helper_service import (
+    check_course_enrollment, get_test_attempt_with_validation,
+    validate_attempt_not_finished, validate_attempt_finished,
+    get_test_attempt_by_id
+)
 from models import (
     Test, Question, TestAttempt, QuestionAttempt,
     Material, Module, CourseEnrollment, User
@@ -57,20 +62,7 @@ async def get_test_for_student(
         material_id: int, test_id: int,
         user: User, db: AsyncSession
 ):
-    enrollment_result = await db.execute(
-        select(CourseEnrollment).where(
-            and_(
-                CourseEnrollment.user_id == user.id,
-                CourseEnrollment.course_id == course_id
-            )
-        )
-    )
-    if not enrollment_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not enrolled in this course"
-        )
-
+    await check_course_enrollment(course_id, user, db)
     result = await db.execute(
         select(Test)
         .options(
@@ -196,29 +188,11 @@ async def submit_answer(
         hint_used: bool, user: User,
         db: AsyncSession
 ):
-    result = await db.execute(
-        select(TestAttempt)
-        .options(selectinload(TestAttempt.test))
-        .where(
-            and_(
-                TestAttempt.id == attempt_id,
-                TestAttempt.test_id == test_id,
-                TestAttempt.user_id == user.id
-            )
-        )
+    attempt = await get_test_attempt_with_validation(
+        attempt_id, test_id, user, db, load_test=True
     )
-    attempt = result.scalar_one_or_none()
-    if not attempt:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Test attempt not found"
-        )
 
-    if attempt.finished_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Test already finished"
-        )
+    await validate_attempt_not_finished(attempt)
 
     question_result = await db.execute(
         select(Question)
@@ -266,7 +240,6 @@ async def submit_answer(
     )
 
     db.add(question_attempt)
-
     attempt.current_question_id = question_id
 
     await db.commit()
@@ -281,32 +254,11 @@ async def finish_test_attempt(
         attempt_id: int, user: User,
         db: AsyncSession
 ):
-    result = await db.execute(
-        select(TestAttempt)
-        .options(
-            selectinload(TestAttempt.test).selectinload(Test.questions),
-            selectinload(TestAttempt.question_attempts)
-        )
-        .where(
-            and_(
-                TestAttempt.id == attempt_id,
-                TestAttempt.test_id == test_id,
-                TestAttempt.user_id == user.id
-            )
-        )
+    attempt = await get_test_attempt_with_validation(
+        attempt_id, test_id, user, db,
+        load_test=True, load_questions=True, load_answers=True
     )
-    attempt = result.scalar_one_or_none()
-    if not attempt:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Test attempt not found"
-        )
-
-    if attempt.finished_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Test already finished"
-        )
+    await validate_attempt_not_finished(attempt)
 
     total_questions = len(attempt.test.questions)
     answered_questions = len(attempt.question_attempts)
@@ -365,7 +317,7 @@ async def finish_test_attempt(
     else:
         message = "Congratulations! Test passed successfully."
 
-    response = {
+    return {
         "id": attempt.id,
         "test_id": attempt.test_id,
         "user_id": attempt.user_id,
@@ -381,36 +333,13 @@ async def finish_test_attempt(
         "message": message
     }
 
-    return response
-
 
 async def get_test_result(attempt_id: int, user: User, db: AsyncSession):
-    result = await db.execute(
-        select(TestAttempt)
-        .options(
-            selectinload(TestAttempt.test).selectinload(Test.questions).selectinload(Question.options),
-            selectinload(TestAttempt.question_attempts)
-        )
-        .where(
-            and_(
-                TestAttempt.id == attempt_id,
-                TestAttempt.user_id == user.id
-            )
-        )
+    attempt = await get_test_attempt_by_id(
+        attempt_id, user, db,
+        load_test=True, load_questions=True, load_answers=True
     )
-    attempt = result.scalar_one_or_none()
-    if not attempt:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Test attempt not found"
-        )
-
-    if attempt.finished_at is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Test not finished yet"
-        )
-
+    await validate_attempt_finished(attempt)
     answers_map = {qa.question_id: qa for qa in attempt.question_attempts}
     questions_results = []
     for question in attempt.test.questions:
@@ -452,19 +381,7 @@ async def get_my_test_attempts(
         material_id: int, test_id: int,
         user: User, db: AsyncSession
 ):
-    enrollment_result = await db.execute(
-        select(CourseEnrollment).where(
-            and_(
-                CourseEnrollment.user_id == user.id,
-                CourseEnrollment.course_id == course_id
-            )
-        )
-    )
-    if not enrollment_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not enrolled in this course"
-        )
+    await check_course_enrollment(course_id, user, db)
     result = await db.execute(
         select(TestAttempt)
         .options(selectinload(TestAttempt.test))

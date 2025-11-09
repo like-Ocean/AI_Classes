@@ -1,142 +1,109 @@
-import json
-from typing import Dict, Any
-import ollama
+from AI import ai_service
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_
+from typing import List
+from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
-from core.config import settings
+from models import Test, Question, AnswerOption, Material, User, Module
+from models.Enums import QuestionType
+from service.course_service import check_course_access
 
 
-async def generate_test_from_content(
-        material_title: str, content: str,
-        num_questions: int = 5,
-        pass_threshold: int = 70
+async def generate_test_with_ai(
+        course_id: int, module_id: int,
+        material_id: int, num_questions: int,
+        question_types: List[str],
+        pass_threshold: int, time_limit_minutes: int,
+        user: User, db: AsyncSession
 ):
-    if not content or len(content.strip()) < 50:
+    await check_course_access(course_id, user, db)
+    result = await db.execute(
+        select(Material)
+        .join(Module)
+        .where(
+            and_(
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
+    )
+    material = result.scalar_one_or_none()
+    if not material:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Material not found in this module"
+        )
+
+    material_content = ""
+    if material.text_content:
+        material_content = material.text_content
+        print(material_content)
+    elif material.transcript:
+        material_content = material.transcript
+    else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Material content is too short to generate a test. Minimum 50 characters required."
+            detail="Material must have text_content or transcript for test generation"
         )
-
-    system_prompt = """Ты - опытный преподаватель, создающий тесты для студентов.
-
-Твоя задача: создать тест на основе учебного материала.
-
-Требования:
-1. Вопросы должны проверять понимание ключевых концепций
-2. Используй разные типы вопросов
-3. Варианты ответов должны быть правдоподобными
-4. Добавь подсказки к вопросам
-5. Все на русском языке
-
-ВАЖНО: Верни ТОЛЬКО валидный JSON, без дополнительного текста!
-
-Формат JSON:
-{
-  "title": "Название теста",
-  "questions": [
-    {
-      "text": "Текст вопроса?",
-      "type": "single",
-      "hint_text": "Подсказка",
-      "options": [
-        {"content": "Вариант 1", "is_correct": false},
-        {"content": "Вариант 2", "is_correct": true},
-        {"content": "Вариант 3", "is_correct": false}
-      ]
-    }
-  ]
-}
-
-Типы вопросов:
-- single: один правильный ответ (3-4 варианта)
-- multiple: несколько правильных ответов (4-5 вариантов)
-- true_false: верно/неверно (варианты: "Верно", "Неверно")"""
-
-    user_prompt = f"""Создай тест из {num_questions} вопросов.
-
-Материал: {material_title}
-
-Содержание:
-{content[:3000]}
-
-Создай разнообразный тест с вопросами разных типов."""
 
     try:
-        try:
-            ollama.list()
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Ollama service is not available. Please make sure Ollama is running. Error: {str(e)}"
-            )
-
-        response = ollama.chat(
-            model=settings.OLLAMA_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            format="json",
-            options={
-                "temperature": 0.7,
-                "num_predict": 2000,
-            }
-        )
-
-        result_text = response['message']['content']
-        test_data = json.loads(result_text)
-        if "questions" not in test_data or not test_data["questions"]:
-            raise ValueError("AI did not generate questions")
-
-        for idx, question in enumerate(test_data["questions"], start=1):
-            question["position"] = idx
-            q_type = question.get("type")
-            if q_type not in ["single_choice", "multiple_choice", "true_false"]:
-                question["type"] = "single_choice"
-
-        test_data["num_questions"] = len(test_data["questions"])
-        test_data["pass_threshold"] = pass_threshold
-
-        return test_data
-
-    except json.JSONDecodeError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to parse AI response as JSON: {str(e)}"
+        ai_response = await ai_service.generate_test(
+            material_content=material_content,
+            num_questions=num_questions,
+            question_types=question_types
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"AI service error: {str(e)}"
+            detail=f"AI generation failed: {str(e)}"
         )
 
+    test = Test(
+        title=ai_response.get("title", f"Тест по материалу: {material.title}"),
+        num_questions=num_questions,
+        time_limit_seconds=time_limit_minutes * 60 if time_limit_minutes else None,
+        pass_threshold=pass_threshold,
+        status="draft",
+        generated_by_nn=True,
+        created_by=user.id,
+        module_id=module_id,
+        material_id=material_id
+    )
 
-def validate_generated_test(test_data: Dict[str, Any]) -> bool:
-    if not isinstance(test_data, dict):
-        return False
+    db.add(test)
+    await db.flush()
 
-    if "questions" not in test_data:
-        return False
+    for i, q_data in enumerate(ai_response.get("questions", []), 1):
+        question = Question(
+            test_id=test.id,
+            text=q_data["text"],
+            type=QuestionType(q_data["type"]),
+            position=i,
+            hint_text=q_data.get("hint_text")
+        )
 
-    questions = test_data["questions"]
-    if not isinstance(questions, list) or len(questions) == 0:
-        return False
+        db.add(question)
+        await db.flush()
 
-    for question in questions:
-        if not isinstance(question, dict):
-            return False
+        for opt_data in q_data.get("options", []):
+            option = AnswerOption(
+                question_id=question.id,
+                content=opt_data["content"],
+                is_correct=opt_data["is_correct"]
+            )
+            db.add(option)
 
-        required_fields = ["text", "type", "options"]
-        if not all(field in question for field in required_fields):
-            return False
+    await db.commit()
+    await db.refresh(test)
 
-        options = question["options"]
-        if not isinstance(options, list) or len(options) < 2:
-            return False
+    result = await db.execute(
+        select(Test)
+        .options(
+            selectinload(Test.questions).selectinload(Question.options)
+        )
+        .where(Test.id == test.id)
+    )
+    test_loaded = result.scalar_one()
 
-        has_correct = any(opt.get("is_correct", False) for opt in options)
-        if not has_correct:
-            return False
-
-    return True
-
-
+    return test_loaded

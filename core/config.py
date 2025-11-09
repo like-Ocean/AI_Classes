@@ -40,10 +40,24 @@ class Settings(BaseSettings):
         ".zip", ".rar"
     ]
 
-    # AI Service (Ollama)
+    # AI Service (DeepSeek через LiteLLM)
+    #  Timeweb Cloud AI (OpenAI-compatible)
+    TIMEWEB_AGENT_ACCESS_ID: str  # Ваш agent_access_id для DeepSeek V3.2-Exp
+    TIMEWEB_API_KEY: str = ""  # Bearer token (если требуется)
+    TIMEWEB_BASE_URL: str = "https://agent.timeweb.cloud"
+
+    # AI Settings
+    AI_TIMEOUT: int = 120
+    AI_MAX_TOKENS: int = 4000
+    AI_TEMPERATURE: float = 0.7
+
+    # Ollama (для локальных моделей, если нужно)
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "qwen2.5:3b"
-    OLLAMA_TIMEOUT: int = 120
+
+    @property
+    def TIMEWEB_FULL_BASE_URL(self) -> str:
+        return f"{self.TIMEWEB_BASE_URL}/api/v1/cloud-ai/agents/{self.TIMEWEB_AGENT_ACCESS_ID}"
 
     @property
     def DATABASE_URL(self) -> str:
