@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, status, UploadFile, File as FastAPIFile
+from fastapi import APIRouter, Depends, status, UploadFile, File as FastAPIFile, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from core.database import get_db
+from sqlalchemy import select, and_
 from core.dependencies import get_current_teacher
-from service import course_service, file_service
+from models import User, Module, Material, File, MaterialFile
+from service import course_service, file_service, material_service
 from models import User
 from schemas.course import (
     CourseCreateRequest, CourseUpdateRequest, CourseResponse,
@@ -180,7 +182,7 @@ async def create_material(
     current_teacher: User = Depends(get_current_teacher),
     db: AsyncSession = Depends(get_db)
 ):
-    material = await course_service.create_material(
+    material = await material_service.create_material(
         course_id, module_id, data, current_teacher, db
     )
     return material
@@ -197,7 +199,7 @@ async def update_material(
     current_teacher: User = Depends(get_current_teacher),
     db: AsyncSession = Depends(get_db)
 ):
-    material = await course_service.update_material(
+    material = await material_service.update_material(
         course_id, module_id, material_id, data, current_teacher, db
     )
     return material
@@ -213,10 +215,109 @@ async def delete_material(
     current_teacher: User = Depends(get_current_teacher),
     db: AsyncSession = Depends(get_db)
 ):
-    await course_service.delete_material(
+    await material_service.delete_material(
         course_id, module_id, material_id, current_teacher, db
     )
     return MessageResponse(message="Material successfully deleted")
+
+
+# FILES
+
+@teacher_router.get(
+    "/courses/{course_id}/modules/{module_id}/materials/{material_id}/content",
+    summary="Get material extracted content"
+)
+async def get_material_content(
+        course_id: int, module_id: int,
+        material_id: int,
+        current_teacher: User = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db)
+):
+    """
+    Просмотр извлечённого текста из файлов материала
+    !!!ТЕСТОВАЯ ТЕМА!!!
+    НУЖНО БУДЕТ УДАЛИТЬ
+    """
+    await course_service.check_course_access(course_id, current_teacher, db)
+
+    result = await db.execute(
+        select(Material)
+        .join(Module)
+        .where(
+            and_(
+                Material.id == material_id,
+                Module.id == module_id,
+                Module.course_id == course_id
+            )
+        )
+    )
+    material = result.scalar_one_or_none()
+
+    if not material:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Material not found"
+        )
+
+    return {
+        "material_id": material.id,
+        "title": material.title,
+        "text_content": material.text_content,
+        "text_length": len(material.text_content) if material.text_content else 0,
+        "has_content": bool(material.text_content)
+    }
+
+
+@teacher_router.post(
+    "/files/upload",
+    response_model=FileResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload file"
+)
+async def upload_file(
+        file: UploadFile = FastAPIFile(...),
+        current_teacher: User = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db)
+):
+    uploaded_file = await file_service.save_file(file, db)
+    return uploaded_file
+
+
+#     Прикрепление файлов к материалу.
+#     Сначала загрузить файлы через /files/upload,
+#     затем прикрепите их к материалу по ID.
+@teacher_router.post(
+    "/courses/{course_id}/modules/{module_id}/materials/{material_id}/files",
+    response_model=List[MaterialFileResponse],
+    summary="Attach files to material"
+)
+async def attach_files(
+    course_id: int, module_id: int,
+    material_id: int, file_ids: List[int],
+    current_teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db)
+):
+    material_files = await material_service.attach_files_to_material(
+        course_id, module_id, material_id, file_ids, current_teacher, db
+    )
+    return material_files
+
+
+@teacher_router.delete(
+    "/courses/{course_id}/modules/{module_id}/materials/{material_id}/files/{file_id}",
+    response_model=MessageResponse,
+    summary="Detach file from material"
+)
+async def detach_file(
+    course_id: int, module_id: int,
+    material_id: int, file_id: int,
+    current_teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db)
+):
+    await material_service.detach_file_from_material(
+        course_id, module_id, material_id, file_id, current_teacher, db
+    )
+    return MessageResponse(message="File detached successfully")
 
 
 # EDITORS
@@ -271,58 +372,6 @@ async def get_editors(
     )
     return editors
 
-
-# FILES
-@teacher_router.post(
-    "/files/upload",
-    response_model=FileResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Upload file"
-)
-async def upload_file(
-        file: UploadFile = FastAPIFile(...),
-        current_teacher: User = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db)
-):
-    uploaded_file = await file_service.save_file(file, db)
-    return uploaded_file
-
-
-#     Прикрепление файлов к материалу.
-#     Сначала загрузить файлы через /files/upload,
-#     затем прикрепите их к материалу по ID.
-@teacher_router.post(
-    "/courses/{course_id}/modules/{module_id}/materials/{material_id}/files",
-    response_model=List[MaterialFileResponse],
-    summary="Attach files to material"
-)
-async def attach_files(
-    course_id: int, module_id: int,
-    material_id: int, file_ids: List[int],
-    current_teacher: User = Depends(get_current_teacher),
-    db: AsyncSession = Depends(get_db)
-):
-    material_files = await course_service.attach_files_to_material(
-        course_id, module_id, material_id, file_ids, current_teacher, db
-    )
-    return material_files
-
-
-@teacher_router.delete(
-    "/courses/{course_id}/modules/{module_id}/materials/{material_id}/files/{file_id}",
-    response_model=MessageResponse,
-    summary="Detach file from material"
-)
-async def detach_file(
-    course_id: int, module_id: int,
-    material_id: int, file_id: int,
-    current_teacher: User = Depends(get_current_teacher),
-    db: AsyncSession = Depends(get_db)
-):
-    await course_service.detach_file_from_material(
-        course_id, module_id, material_id, file_id, current_teacher, db
-    )
-    return MessageResponse(message="File detached successfully")
 
 
 @teacher_router.get(

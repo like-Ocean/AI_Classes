@@ -10,6 +10,7 @@ from schemas.AI import GenerateTestRequest
 ai_router = APIRouter(prefix="/ai", tags=["AI"])
 
 
+# TODO: дописать чтобы тесты делались по содержанию файла, а не рандомно
 @ai_router.post(
     "/courses/{course_id}/modules/{module_id}/materials/{material_id}/generate-test",
     response_model=TestWithQuestionsResponse,
