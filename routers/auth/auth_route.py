@@ -15,7 +15,7 @@ auth_router = APIRouter(prefix="/auth", tags=["Authentication"])
     "/register",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Register new student"
+    summary="Register new students"
 )
 async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
     user = await auth_service.register_user(data, db)

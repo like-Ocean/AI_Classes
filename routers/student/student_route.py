@@ -19,7 +19,7 @@ from schemas.student_tests import (
 from schemas.course import CourseWithModulesResponse
 from schemas.auth import MessageResponse
 
-student_router = APIRouter(prefix="/student", tags=["Student"])
+student_router = APIRouter(prefix="/students", tags=["Student"])
 
 
 # COURSE CATALOG

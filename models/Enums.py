@@ -15,7 +15,7 @@ class QuestionType(str, Enum):
 
 
 class RoleType(str, Enum):
-    student = "student"
+    student = "students"
     teacher = "teacher"
     admin = "admin"
 
