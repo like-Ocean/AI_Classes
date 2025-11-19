@@ -36,14 +36,14 @@ class Settings(BaseSettings):
     ALLOWED_EXTENSIONS: list = [
         ".pdf", ".doc", ".docx", ".txt", ".md",
         ".jpg", ".jpeg", ".png", ".gif", ".svg", ".webp",
-        ".mp4", ".webm", ".avi", ".mov",
+        ".mp4", ".webm", ".avi", ".mov", '.mp3', '.wav',
         ".zip", ".rar"
     ]
 
     # AI Service (DeepSeek через LiteLLM)
-    #  Timeweb Cloud AI (OpenAI-compatible)
-    TIMEWEB_AGENT_ACCESS_ID: str  # Ваш agent_access_id для DeepSeek V3.2-Exp
-    TIMEWEB_API_KEY: str = ""  # Bearer token (если требуется)
+    # Timeweb Cloud AI (OpenAI-compatible)
+    TIMEWEB_AGENT_ACCESS_ID: str  # agent_access_id
+    TIMEWEB_API_KEY: str = ""  # Bearer token
     TIMEWEB_BASE_URL: str = "https://agent.timeweb.cloud"
 
     # AI Settings

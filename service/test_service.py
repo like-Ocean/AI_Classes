@@ -12,9 +12,6 @@ from schemas.tests import (
 from service.course_service import check_course_access
 
 
-# TODO: Тесты создаются, нужно добавить возможность пользователею проходить тесты.
-#  генерацию тестов через нейронку на основе материала после которого идеёт тест
-
 # TESTS
 async def create_test(
         course_id: int, module_id: int,

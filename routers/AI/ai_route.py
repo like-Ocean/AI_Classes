@@ -10,7 +10,6 @@ from schemas.AI import GenerateTestRequest
 ai_router = APIRouter(prefix="/ai", tags=["AI"])
 
 
-# TODO: дописать чтобы тесты делались по содержанию файла, а не рандомно
 @ai_router.post(
     "/courses/{course_id}/modules/{module_id}/materials/{material_id}/generate-test",
     response_model=TestWithQuestionsResponse,
@@ -24,14 +23,12 @@ async def generate_test(
         db: AsyncSession = Depends(get_db)
 ):
     test = await generate_test_with_ai(
-        course_id=course_id,
-        module_id=module_id,
+        course_id=course_id, module_id=module_id,
         material_id=material_id,
         num_questions=data.num_questions,
         question_types=data.question_types,
         pass_threshold=data.pass_threshold,
         time_limit_minutes=data.time_limit_minutes,
-        user=current_teacher,
-        db=db
+        user=current_teacher, db=db
     )
     return test

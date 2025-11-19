@@ -263,6 +263,7 @@ async def get_material_content(
         "material_id": material.id,
         "title": material.title,
         "text_content": material.text_content,
+        "trans": material.transcript,
         "text_length": len(material.text_content) if material.text_content else 0,
         "has_content": bool(material.text_content)
     }
@@ -371,7 +372,6 @@ async def get_editors(
         course_id, current_teacher, db
     )
     return editors
-
 
 
 @teacher_router.get(
