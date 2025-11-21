@@ -33,7 +33,7 @@ async def load_course_with_modules(course_id: int, db: AsyncSession):
         select(Course)
         .options(
             selectinload(Course.creator),
-            selectinload(Course.modules)
+            selectinload(Course.modules).selectinload(Module.materials)
         )
         .where(Course.id == course_id)
     )
@@ -177,3 +177,42 @@ async def load_course_modules_with_materials(course_id: int, db: AsyncSession):
         module.materials.sort(key=lambda m: m.position)
 
     return modules
+
+
+async def get_course_with_progress_data(course: Course, user_id: int, db: AsyncSession):
+    material_ids = [m.id for module in course.modules for m in module.materials]
+    progress_map = await get_materials_progress(user_id, material_ids, db)
+
+    completed, total = await calculate_course_progress(user_id, course.id, db)
+    overall_progress = (completed / total * 100) if total > 0 else 0
+    modules_data = []
+    for module in course.modules:
+        completed_in_module = sum(
+            1 for material in module.materials if progress_map.get(material.id)
+        )
+        module_progress = (
+            (completed_in_module / len(module.materials) * 100)
+            if module.materials else 0
+        )
+
+        module_dict = {
+            "id": module.id,
+            "title": module.title,
+            "position": module.position,
+            "course_id": module.course_id,
+            "progress_percentage": round(module_progress, 2)
+        }
+        modules_data.append(module_dict)
+
+    return {
+        "id": course.id,
+        "title": course.title,
+        "description": course.description,
+        "img_url": course.img_url,
+        "creator": course.creator,
+        "created_at": course.created_at,
+        "modules": modules_data,
+        "overall_progress": round(overall_progress, 2),
+        "completed_materials": completed,
+        "total_materials": total
+    }

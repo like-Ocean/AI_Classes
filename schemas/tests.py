@@ -57,7 +57,7 @@ class QuestionCreateRequest(BaseModel):
     hint_text: Optional[str] = None
     options: List[AnswerOptionCreate] = Field(
         default=[],
-        description="Варианты ответов (для single_choice и multiple_choice)"
+        description="Варианты ответов (для single и multiple)"
     )
 
 

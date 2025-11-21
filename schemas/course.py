@@ -3,7 +3,7 @@ from typing import Optional, List
 from datetime import datetime
 from models.Enums import MaterialType
 from schemas.user import UserResponse
-from schemas.file import MaterialFileResponse, FileResponse
+from schemas.file import FileResponse
 
 
 # COURSE SCHEMAS

@@ -7,58 +7,23 @@ from schemas.course import CourseResponse
 from math import ceil
 from models import (
     Course, Module, Material, User, CourseApplication,
-    CourseEnrollment, CourseProgress, LessonProgress
+    CourseEnrollment, CourseProgress, LessonProgress,
+    MaterialFile
 )
 from models.Enums import ApplicationStatus
 from helpers.students.access_helper import (
     check_course_enrollment, require_course_enrollment,
     get_material_with_validation, get_module_materials,
-    check_previous_material_completed, check_material_lock
+    check_previous_material_completed, check_material_lock,
+    check_material_access
 )
 from helpers.students.course_loader import (
     load_course_with_modules, load_course_with_creator,
     get_materials_progress, get_passed_tests,
     update_course_progress_record,
-    load_module_with_materials, load_course_modules_with_materials
+    load_module_with_materials, load_course_modules_with_materials,
+    get_course_with_progress_data
 )
-
-# TODO: всё работает вроде, нужно только удалить дубликаты
-#  и разобраться с тем как возвращать курсы и модули.(с прогрессом или без)
-
-# MATERIAL ACCESS
-
-async def check_material_access(
-        course_id: int, module_id: int,
-        material_id: int, user: User,
-        db: AsyncSession
-) -> dict:
-    await require_course_enrollment(course_id, user, db)
-    material = await get_material_with_validation(
-        course_id, module_id, material_id, db
-    )
-    all_materials = await get_module_materials(module_id, db)
-    current_position = next(
-        (i for i, m in enumerate(all_materials) if m.id == material_id),
-        None
-    )
-    if current_position is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Material not found in module"
-        )
-    if current_position > 0:
-        previous_material = all_materials[current_position - 1]
-
-        if not await check_previous_material_completed(previous_material, user, db):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"You must complete '{previous_material.title}' before accessing this material"
-            )
-
-    return {
-        "access_granted": True,
-        "material": material
-    }
 
 
 # COURSE CATALOG
@@ -242,7 +207,7 @@ async def cancel_application(application_id: int, user: User, db: AsyncSession):
     await db.commit()
 
 
-# MY COURSES (используется в роутах)
+# MY COURSES
 
 async def get_my_courses(user: User, db: AsyncSession):
     result = await db.execute(
@@ -293,7 +258,7 @@ async def get_my_courses(user: User, db: AsyncSession):
 async def get_enrolled_course_detail(course_id: int, user: User, db: AsyncSession):
     await require_course_enrollment(course_id, user, db)
     course = await load_course_with_modules(course_id, db)
-    return course
+    return await get_course_with_progress_data(course, user.id, db)
 
 
 # MODULE WITH PROGRESS
@@ -351,65 +316,6 @@ async def get_module_with_progress(
     }
 
 
-async def get_course_modules_with_progress(
-        course_id: int, user: User, db: AsyncSession
-):
-    await require_course_enrollment(course_id, user, db)
-    modules = await load_course_modules_with_materials(course_id, db)
-    material_ids = [m.id for module in modules for m in module.materials]
-    progress_map = await get_materials_progress(user.id, material_ids, db)
-    modules_data = []
-    total_materials = 0
-    total_completed = 0
-    for module in modules:
-        materials_data = []
-        completed_count = 0
-
-        for material in module.materials:
-            progress = progress_map.get(material.id)
-            is_completed = progress is not None
-
-            if is_completed:
-                completed_count += 1
-                total_completed += 1
-
-            total_materials += 1
-
-            material_dict = {
-                "material_id": material.id,
-                "title": material.title,
-                "type": material.type,
-                "position": material.position,
-                "is_completed": is_completed,
-                "completed_at": progress.completed_at if progress else None
-            }
-            materials_data.append(material_dict)
-
-        progress_percentage = (
-            (completed_count / len(module.materials) * 100)
-            if module.materials else 0
-        )
-        module_dict = {
-            "id": module.id,
-            "title": module.title,
-            "position": module.position,
-            "course_id": module.course_id,
-            "materials": materials_data,
-            "progress_percentage": round(progress_percentage, 2)
-        }
-        modules_data.append(module_dict)
-
-    overall_progress = (
-        (total_completed / total_materials * 100)
-        if total_materials > 0 else 0
-    )
-    return {
-        "course_id": course_id,
-        "modules": modules_data,
-        "overall_progress": round(overall_progress, 2)
-    }
-
-
 # PROGRESS TRACKING
 
 async def mark_material_completed(
@@ -458,3 +364,68 @@ async def mark_material_completed(
 
 async def update_course_progress(user_id: int, course_id: int, db: AsyncSession):
     await update_course_progress_record(user_id, course_id, db)
+
+
+async def get_material_detail(
+        course_id: int, module_id: int,
+        material_id: int, user: User,
+        db: AsyncSession
+):
+    access = await check_material_access(
+        course_id, module_id, material_id, user, db
+    )
+    result = await db.execute(
+        select(Material)
+        .options(
+            selectinload(Material.module),
+            selectinload(Material.material_files).selectinload(MaterialFile.file),
+            selectinload(Material.tests)
+        )
+        .where(Material.id == material_id)
+    )
+    material = result.scalar_one()
+    progress_result = await db.execute(
+        select(LessonProgress).where(
+            and_(
+                LessonProgress.user_id == user.id,
+                LessonProgress.lesson_id == material_id
+            )
+        )
+    )
+    progress = progress_result.scalar_one_or_none()
+    return {
+        "id": material.id,
+        "module": {
+            "id": material.module.id,
+            "title": material.module.title,
+            "position": material.module.position,
+            "course_id": material.module.course_id
+        },
+        "type": material.type,
+        "title": material.title,
+        "content_url": material.content_url,
+        "text_content": material.text_content,
+        "transcript": material.transcript,
+        "position": material.position,
+        "files": [
+            {
+                "id": mf.id,
+                "file_id": mf.file_id,
+                "file": mf.file
+            }
+            for mf in material.material_files
+        ],
+        "has_tests": len(material.tests) > 0,
+        "tests": [
+            {
+                "id": test.id,
+                "title": test.title,
+                "num_questions": test.num_questions,
+                "time_limit_seconds": test.time_limit_seconds,
+                "pass_threshold": test.pass_threshold
+            }
+            for test in material.tests
+        ],
+        "is_completed": progress is not None,
+        "completed_at": progress.completed_at if progress else None
+    }

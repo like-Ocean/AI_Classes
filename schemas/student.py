@@ -1,9 +1,9 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
-from schemas.course import CourseResponse
+from schemas.course import CourseResponse, MaterialFileInfo, ModuleResponse
 from schemas.user import UserResponse
-from models.Enums import ApplicationStatus
+from models.Enums import ApplicationStatus, MaterialType
 
 
 # COURSE APPLICATION (ЗАЯВКИ)
@@ -131,7 +131,7 @@ class ModuleWithProgressResponse(BaseModel):
     title: str
     position: int
     course_id: int
-    materials: List[MaterialProgressInfo] = []
+    materials: Optional[List[MaterialProgressInfo]] = []
     progress_percentage: float = 0.0
 
 
@@ -139,3 +139,46 @@ class CourseModulesWithProgressResponse(BaseModel):
     course_id: int
     modules: List[ModuleWithProgressResponse] = []
     overall_progress: float = 0.0
+
+
+class EnrolledCourseDetailResponse(BaseModel):
+    id: int
+    title: str
+    description: Optional[str]
+    img_url: Optional[str]
+    creator: Optional[UserResponse] = None
+    created_at: datetime
+    overall_progress: float = 0.0
+    completed_materials: int = 0
+    total_materials: int = 0
+    modules: List[ModuleWithProgressResponse] = []
+
+
+class MaterialDetailForStudent(BaseModel):
+    id: int
+    module: ModuleResponse
+    type: MaterialType
+    title: str
+    content_url: Optional[str]
+    text_content: Optional[str]
+    transcript: Optional[str]
+    position: int
+    files: List[MaterialFileInfo] = []
+    has_tests: bool = False
+    tests: List['TestBriefInfo'] = []
+    is_completed: bool = False
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class TestBriefInfo(BaseModel):
+    id: int
+    title: str
+    num_questions: int
+    time_limit_seconds: Optional[int]
+    pass_threshold: int
+
+    class Config:
+        from_attributes = True

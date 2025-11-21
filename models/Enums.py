@@ -15,7 +15,7 @@ class QuestionType(str, Enum):
 
 
 class RoleType(str, Enum):
-    student = "students"
+    student = "students" # АВТО РЕФАКТОРИНГ СОСНУЛ ЧЛЕН БЛЯ И ПОМЕНЯЛ student НА studentS МОГУТ ПОЯВИТЬСЯ ОШИБКИ!!!
     teacher = "teacher"
     admin = "admin"
 

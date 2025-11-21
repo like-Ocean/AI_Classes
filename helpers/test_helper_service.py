@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 from models import CourseEnrollment, TestAttempt, User
 
 
+# TODO: удалить и заменить на from helpers.students.access_helper import require_course_enrollment
 async def check_course_enrollment(course_id: int, user: User, db: AsyncSession):
     result = await db.execute(
         select(CourseEnrollment).where(

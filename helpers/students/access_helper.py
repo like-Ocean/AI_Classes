@@ -124,3 +124,37 @@ def check_material_lock(
             return True, f"Complete '{previous_material.title}' to unlock"
 
     return False, None
+
+
+async def check_material_access(
+        course_id: int, module_id: int,
+        material_id: int, user: User,
+        db: AsyncSession
+):
+    await require_course_enrollment(course_id, user, db)
+    material = await get_material_with_validation(
+        course_id, module_id, material_id, db
+    )
+    all_materials = await get_module_materials(module_id, db)
+    current_position = next(
+        (i for i, m in enumerate(all_materials) if m.id == material_id),
+        None
+    )
+    if current_position is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Material not found in module"
+        )
+    if current_position > 0:
+        previous_material = all_materials[current_position - 1]
+
+        if not await check_previous_material_completed(previous_material, user, db):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"You must complete '{previous_material.title}' before accessing this material"
+            )
+
+    return {
+        "access_granted": True,
+        "material": material
+    }

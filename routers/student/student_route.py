@@ -9,14 +9,13 @@ from schemas.student import (
     CourseApplicationResponse, PaginatedCoursesResponse,
     MyCoursesResponse, LessonProgressResponse,
     ModuleWithProgressResponse, CourseCardResponse,
-    CourseModulesWithProgressResponse
+    EnrolledCourseDetailResponse, MaterialDetailForStudent
 )
 from schemas.student_tests import (
     TestForStudent, TestAttemptResponse, SubmitAnswerRequest,
     QuestionAttemptResponse, TestResultResponse, MyTestAttemptSummary,
     TestAttemptWithBlockResponse
 )
-from schemas.course import CourseWithModulesResponse
 from schemas.auth import MessageResponse
 
 student_router = APIRouter(prefix="/students", tags=["Student"])
@@ -127,11 +126,10 @@ async def get_my_courses(
     )
     return data
 
-
-# Возможно нужно удалить так как есть get_course_modules(Get all course modules with progress)
+# не нужно возвращать все материалы в этом роуте.(только прогресс по крусу и модулям)
 @student_router.get(
     "/my-courses/{course_id}",
-    response_model=CourseWithModulesResponse,
+    response_model=EnrolledCourseDetailResponse,
     summary="Get enrolled course details"
 )
 async def get_enrolled_course(
@@ -157,22 +155,6 @@ async def get_module(
 ):
     data = await student_service.get_module_with_progress(
         course_id, module_id, current_user, db
-    )
-    return data
-
-
-@student_router.get(
-    "/my-courses/{course_id}/modules",
-    response_model=CourseModulesWithProgressResponse,
-    summary="Get all course modules with progress"
-)
-async def get_course_modules(
-    course_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    data = await student_service.get_course_modules_with_progress(
-        course_id, current_user, db
     )
     return data
 
@@ -259,10 +241,8 @@ async def submit_answer(
     summary="Finish test attempt"
 )
 async def finish_test(
-    course_id: int,
-    module_id: int,
-    material_id: int,
-    test_id: int,
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
     attempt_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -305,3 +285,25 @@ async def get_my_attempts(
         course_id, module_id, material_id, test_id, current_user, db
     )
     return attempts
+
+
+@student_router.get(
+    "/my-courses/{course_id}/modules/{module_id}/materials/{material_id}",
+    response_model=MaterialDetailForStudent,
+    summary="Get material detail (with access check)"
+)
+async def get_material_detail(
+        course_id: int, module_id: int,
+        material_id: int,
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+):
+    """
+    Доступ только если:
+        - Студент записан на курс
+        - Предыдущий материал пройден (если был тест - сдан)
+    """
+    material = await student_service.get_material_detail(
+        course_id, module_id, material_id, current_user, db
+    )
+    return material
