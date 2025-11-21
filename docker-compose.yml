@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  app:
+    build: .
+    container_name: ai_classes_app
+    restart: always
+    env_file: .env
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+    environment:
+      DB_HOST: db
+    command: >
+      uvicorn main:app
+      --host 0.0.0.0
+      --port 8000
+      --reload
+
+  db:
+    image: postgres:16
+    container_name: ai_classes_postgres
+    restart: always
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: ai_classes_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
