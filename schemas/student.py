@@ -182,3 +182,20 @@ class TestBriefInfo(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# PUBLIC
+class PublicCourseCard(BaseModel):
+    id: int
+    title: str
+    description: Optional[str]
+    img_url: Optional[str]
+    creator: Optional[UserResponse] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PaginatedPublicCoursesResponse(PaginatedCoursesResponse):
+    courses: List[PublicCourseCard]

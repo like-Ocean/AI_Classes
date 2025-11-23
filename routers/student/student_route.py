@@ -126,7 +126,7 @@ async def get_my_courses(
     )
     return data
 
-# не нужно возвращать все материалы в этом роуте.(только прогресс по крусу и модулям)
+
 @student_router.get(
     "/my-courses/{course_id}",
     response_model=EnrolledCourseDetailResponse,
