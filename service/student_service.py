@@ -13,16 +13,18 @@ from models import (
 from models.Enums import ApplicationStatus
 from helpers.students.access_helper import (
     check_course_enrollment, require_course_enrollment,
-    get_material_with_validation, get_module_materials,
-    check_previous_material_completed, check_material_lock,
-    check_material_access
+    check_material_lock, check_material_access
 )
 from helpers.students.course_loader import (
     load_course_with_modules, load_course_with_creator,
     get_materials_progress, get_passed_tests,
     update_course_progress_record,
-    load_module_with_materials, load_course_modules_with_materials,
-    get_course_with_progress_data
+    load_module_with_materials, get_course_with_progress_data
+)
+from helpers.students.my_courses_helper import (
+    load_user_enrollments, load_pending_applications,
+    get_course_progress, format_progress_data,
+    format_course_card
 )
 
 
@@ -210,47 +212,29 @@ async def cancel_application(application_id: int, user: User, db: AsyncSession):
 # MY COURSES
 
 async def get_my_courses(user: User, db: AsyncSession):
-    result = await db.execute(
-        select(CourseEnrollment)
-        .options(selectinload(CourseEnrollment.course))
-        .where(CourseEnrollment.user_id == user.id)
-        .order_by(CourseEnrollment.id.desc())
-    )
-    enrollments = result.scalars().all()
+    enrollments = await load_user_enrollments(user.id, db)
+    applications = await load_pending_applications(user.id, db)
+    enrolled_course_ids = {e.course_id for e in enrollments}
     courses_data = []
     for enrollment in enrollments:
-        progress_result = await db.execute(
-            select(CourseProgress).where(
-                and_(
-                    CourseProgress.user_id == user.id,
-                    CourseProgress.course_id == enrollment.course_id
-                )
-            )
-        )
-        progress = progress_result.scalar_one_or_none()
-        course_dict = {
-            "id": enrollment.course.id,
-            "title": enrollment.course.title,
-            "description": enrollment.course.description,
-            "img_url": enrollment.course.img_url,
-            "progress": None
-        }
-        if progress:
-            progress_percentage = (
-                (progress.completed_items / progress.total_items * 100)
-                if progress.total_items > 0 else 0
-            )
-            course_dict["progress"] = {
-                "id": progress.id,
-                "course_id": progress.course_id,
-                "user_id": progress.user_id,
-                "completed_items": progress.completed_items,
-                "total_items": progress.total_items,
-                "progress_percentage": round(progress_percentage, 2),
-                "last_accessed_at": progress.last_accessed_at
-            }
+        progress = await get_course_progress(user.id, enrollment.course_id, db)
+        progress_data = format_progress_data(progress)
 
-        courses_data.append(course_dict)
+        course_card = format_course_card(
+            course=enrollment.course,
+            progress_data=progress_data,
+            application_status=None
+        )
+        courses_data.append(course_card)
+
+    for application in applications:
+        if application.course_id not in enrolled_course_ids:
+            course_card = format_course_card(
+                course=application.course,
+                progress_data=None,
+                application_status=application.status
+            )
+            courses_data.append(course_card)
 
     return {"courses": courses_data}
 

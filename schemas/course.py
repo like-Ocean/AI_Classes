@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
 from models.Enums import MaterialType
@@ -60,6 +60,24 @@ class MaterialCreateRequest(BaseModel):
     text_content: Optional[str] = None
     transcript: Optional[str] = None
     position: int = Field(..., ge=1, description="Позиция материала в модуле")
+
+    @field_validator('transcript')
+    @classmethod
+    def validate_transcript(cls, v, info):
+        """transcript только для type=video"""
+        material_type = info.data.get('type')
+        if material_type == MaterialType.video:
+            return v
+        return None
+
+    @field_validator('text_content')
+    @classmethod
+    def validate_text_content(cls, v, info):
+        """text_content только для text, document, presentation"""
+        material_type = info.data.get('type')
+        if material_type in [MaterialType.text, MaterialType.document, MaterialType.presentation]:
+            return v
+        return None
 
 
 class MaterialUpdateRequest(BaseModel):

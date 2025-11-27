@@ -4,7 +4,6 @@ from sqlalchemy import select, or_, func
 from sqlalchemy.orm import selectinload
 from math import ceil
 from models import Course
-from schemas.course import CourseResponse
 
 
 async def get_public_courses(

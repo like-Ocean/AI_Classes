@@ -94,6 +94,7 @@ class EnrolledCourseResponse(BaseModel):
     description: Optional[str]
     img_url: Optional[str]
     progress: Optional[CourseProgressResponse] = None
+    application_status: Optional[ApplicationStatus] = None
 
     class Config:
         from_attributes = True
@@ -133,6 +134,8 @@ class ModuleWithProgressResponse(BaseModel):
     course_id: int
     materials: Optional[List[MaterialProgressInfo]] = []
     progress_percentage: float = 0.0
+    completed_materials: int = 0
+    total_materials: int = 0
 
 
 class CourseModulesWithProgressResponse(BaseModel):

@@ -35,8 +35,8 @@ async def create_material(
         type=data.type,
         title=data.title,
         content_url=data.content_url,
-        text_content=None,
-        transcript=None,
+        text_content=data.text_content,
+        transcript=data.transcript,
         position=data.position
     )
 

@@ -185,14 +185,16 @@ async def get_course_with_progress_data(course: Course, user_id: int, db: AsyncS
 
     completed, total = await calculate_course_progress(user_id, course.id, db)
     overall_progress = (completed / total * 100) if total > 0 else 0
+
     modules_data = []
     for module in course.modules:
         completed_in_module = sum(
             1 for material in module.materials if progress_map.get(material.id)
         )
+        total_in_module = len(module.materials)
         module_progress = (
-            (completed_in_module / len(module.materials) * 100)
-            if module.materials else 0
+            (completed_in_module / total_in_module * 100)
+            if total_in_module > 0 else 0
         )
 
         module_dict = {
@@ -200,7 +202,9 @@ async def get_course_with_progress_data(course: Course, user_id: int, db: AsyncS
             "title": module.title,
             "position": module.position,
             "course_id": module.course_id,
-            "progress_percentage": round(module_progress, 2)
+            "progress_percentage": round(module_progress, 2),
+            "completed_materials": completed_in_module,
+            "total_materials": total_in_module
         }
         modules_data.append(module_dict)
 
