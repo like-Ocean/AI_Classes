@@ -16,7 +16,6 @@ from models import (
 from models.Enums import QuestionType
 
 
-# TODO: могут быть ошибки
 def calculate_question_score(
         question: Question,
         selected_option_ids: List[int]
@@ -340,8 +339,10 @@ async def get_test_result(attempt_id: int, user: User, db: AsyncSession):
         load_test=True, load_questions=True, load_answers=True
     )
     await validate_attempt_finished(attempt)
+
     answers_map = {qa.question_id: qa for qa in attempt.question_attempts}
     questions_results = []
+
     for question in attempt.test.questions:
         correct_option_ids = [opt.id for opt in question.options if opt.is_correct]
         student_answer = answers_map.get(question.id)
@@ -350,14 +351,17 @@ async def get_test_result(attempt_id: int, user: User, db: AsyncSession):
         if student_answer and student_answer.answer:
             partial_score = student_answer.answer.get("partial_score", 0.0)
 
+        is_correct = student_answer.is_correct if student_answer else False
+
         question_result = {
             "question_id": question.id,
             "question_text": question.text,
             "student_answer": student_answer.answer if student_answer else None,
             "correct_option_ids": correct_option_ids,
-            "is_correct": student_answer.is_correct if student_answer else False,
+            "is_correct": is_correct,
             "hint_used": student_answer.hint_used if student_answer else False,
-            "partial_score": round(partial_score * 100)
+            "partial_score": round(partial_score * 100),
+            "hint_text": question.hint_text if not is_correct and question.hint_text else None
         }
         questions_results.append(question_result)
 

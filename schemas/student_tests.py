@@ -93,6 +93,10 @@ class QuestionResult(BaseModel):
         ...,
         description="Частичный балл за вопрос (0-100%)"
     )
+    hint_text: Optional[str] = Field(
+        None,
+        description="Подсказка для неправильного ответа"
+    )
 
 
 class TestResultResponse(BaseModel):
