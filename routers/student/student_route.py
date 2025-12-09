@@ -14,7 +14,7 @@ from schemas.student import (
 from schemas.student_tests import (
     TestForStudent, TestAttemptResponse, SubmitAnswerRequest,
     QuestionAttemptResponse, TestResultResponse, MyTestAttemptSummary,
-    TestAttemptWithBlockResponse
+    TestAttemptWithBlockResponse, SubmitTestRequest
 )
 from schemas.auth import MessageResponse
 
@@ -307,3 +307,27 @@ async def get_material_detail(
         course_id, module_id, material_id, current_user, db
     )
     return material
+
+
+@student_router.post(
+    "/my-courses/{course_id}/modules/{module_id}/materials/{material_id}/tests/{test_id}/attempts/{attempt_id}/submit-all",
+    response_model=TestAttemptWithBlockResponse,
+    summary="Submit all test answers at once"
+)
+async def submit_all_answers(
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    attempt_id: int, data: SubmitTestRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Отправить все ответы теста разом. Все вопросы видны сразу.
+    """
+    result = await student_test_service.submit_test_all_at_once(
+        course_id, module_id, material_id, test_id, attempt_id,
+        [a.model_dump() for a in data.answers],
+        current_user, db
+    )
+    return result
+

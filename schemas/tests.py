@@ -88,3 +88,23 @@ class TestWithQuestionsResponse(TestResponse):
 class AnswerOptionUpdate(BaseModel):
     content: Optional[str] = Field(None, min_length=1)
     is_correct: Optional[bool] = None
+
+
+class TestSummaryResponse(BaseModel):
+    id: int
+    title: str
+    material_id: int
+    module_id: int
+    num_questions: int
+    time_limit_seconds: Optional[int]
+    pass_threshold: int
+    status: str
+    generated_by_nn: bool
+
+    class Config:
+        from_attributes = True
+
+
+class TestsListResponse(BaseModel):
+    tests: List[TestSummaryResponse]
+    total: int

@@ -8,6 +8,7 @@ from models import (
     User, MaterialFile, CourseApplication,
     CourseEnrollment
 )
+from helpers.teacher.test_list_helper import load_module_tests
 from models.Enums import RoleType, ApplicationStatus
 from schemas.course import (
     CourseCreateRequest, CourseUpdateRequest, ModuleCreateRequest,
@@ -450,4 +451,31 @@ async def reject_application(application_id: int, user: User, db: AsyncSession):
         "applied_at": application_loaded.applied_at,
         "reviewed_at": application_loaded.reviewed_at,
         "reviewed_by": application_loaded.reviewer
+    }
+
+
+async def get_module_tests(
+        course_id: int, module_id: int,
+        user: User, db: AsyncSession
+):
+    await check_course_access(course_id, user, db)
+    tests = await load_module_tests(course_id, module_id, db)
+    tests_data = []
+    for test in tests:
+        test_dict = {
+            "id": test.id,
+            "title": test.title,
+            "material_id": test.material_id,
+            "module_id": module_id,
+            "num_questions": len(test.questions),
+            "time_limit_seconds": test.time_limit_seconds,
+            "pass_threshold": test.pass_threshold,
+            "status": test.status,
+            "generated_by_nn": test.generated_by_nn
+        }
+        tests_data.append(test_dict)
+
+    return {
+        "tests": tests_data,
+        "total": len(tests_data)
     }

@@ -4,7 +4,7 @@ from typing import List
 from core.database import get_db
 from sqlalchemy import select, and_
 from core.dependencies import get_current_teacher
-from models import User, Module, Material, File, MaterialFile
+from models import Module, Material
 from service import course_service, file_service, material_service
 from models import User
 from schemas.course import (
@@ -17,6 +17,7 @@ from schemas.course import (
 from schemas.student import CourseApplicationDetailResponse, CourseApplicationResponse
 from schemas.file import FileResponse, MaterialFileResponse
 from schemas.auth import MessageResponse
+from schemas.tests import TestsListResponse
 
 teacher_router = APIRouter(prefix="/teacher", tags=["Teacher"])
 
@@ -420,3 +421,19 @@ async def reject_application(
         application_id, current_teacher, db
     )
     return result
+
+
+@teacher_router.get(
+    "/courses/{course_id}/modules/{module_id}/tests",
+    response_model=TestsListResponse,
+    summary="Get all tests in module"
+)
+async def get_module_tests(
+    course_id: int, module_id: int,
+    current_teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db)
+):
+    data = await course_service.get_module_tests(
+        course_id, module_id, current_teacher, db
+    )
+    return data

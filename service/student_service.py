@@ -7,8 +7,7 @@ from schemas.course import CourseResponse
 from math import ceil
 from models import (
     Course, Module, Material, User, CourseApplication,
-    CourseEnrollment, CourseProgress, LessonProgress,
-    MaterialFile
+    CourseEnrollment, LessonProgress, MaterialFile
 )
 from models.Enums import ApplicationStatus
 from helpers.students.access_helper import (

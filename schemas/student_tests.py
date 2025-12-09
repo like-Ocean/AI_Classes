@@ -143,3 +143,40 @@ class TestAttemptWithBlockResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class QuestionAnswerBatch(BaseModel):
+    question_id: int
+    answer: Dict[str, Any] = Field(
+        ...,
+        example={"selected_option_ids": [1, 2]}
+    )
+    hint_used: bool = False
+
+
+class SubmitTestRequest(BaseModel):
+    answers: List[QuestionAnswerBatch] = Field(
+        ...,
+        description="Список всех ответов на вопросы теста"
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "answers": [
+                        {
+                            "question_id": 18,
+                            "answer": {"selected_option_ids": [67, 68, 69]},
+                            "hint_used": False
+                        },
+                        {
+                            "question_id": 19,
+                            "answer": {"selected_option_ids": [71, 72]},
+                            "hint_used": True
+                        }
+                    ]
+                }
+            ]
+        }
+    }
