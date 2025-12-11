@@ -38,7 +38,6 @@ async def generate_test_with_ai(
     material_content = ""
     if material.text_content:
         material_content = material.text_content
-        print(material_content)
     elif material.transcript:
         material_content = material.transcript
     else:

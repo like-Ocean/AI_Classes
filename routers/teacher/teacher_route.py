@@ -1,12 +1,16 @@
-from fastapi import APIRouter, Depends, status, UploadFile, File as FastAPIFile, HTTPException
+from fastapi import (
+    APIRouter, Depends, status, UploadFile,
+    File as FastAPIFile, HTTPException, Query
+)
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 from core.database import get_db
 from sqlalchemy import select, and_
 from core.dependencies import get_current_teacher
 from models import Module, Material
 from service import course_service, file_service, material_service
 from models import User
+from schemas.enums import CourseRoleFilter
 from schemas.course import (
     CourseCreateRequest, CourseUpdateRequest, CourseResponse,
     ModuleCreateRequest, ModuleUpdateRequest, CourseWithModulesResponse,
@@ -14,7 +18,10 @@ from schemas.course import (
     MaterialCreateRequest, MaterialUpdateRequest,
     MaterialResponse, AddEditorRequest, EditorResponse
 )
-from schemas.student import CourseApplicationDetailResponse, CourseApplicationResponse
+from schemas.student import (
+    CourseApplicationDetailResponse,
+    CourseApplicationResponse, PaginatedCoursesResponse
+)
 from schemas.file import FileResponse, MaterialFileResponse
 from schemas.auth import MessageResponse
 from schemas.tests import TestsListResponse
@@ -42,15 +49,29 @@ async def create_course(
 
 @teacher_router.get(
     "/courses",
-    response_model=List[CourseResponse],
-    summary="Get my courses"
+    response_model=PaginatedCoursesResponse,
+    summary="Get my courses with pagination"
 )
 async def get_my_courses(
+        search: Optional[str] = Query(
+            None,
+            description="Поиск по названию или описанию"
+        ),
+        role: CourseRoleFilter = Query(
+            CourseRoleFilter.all,
+            description="Фильтр по роли: all (все),"
+                        "created (только созданные),"
+                        "editor (только редактируемые)"
+        ),
+        page: int = Query(1, ge=1, description="Номер страницы"),
+        page_size: int = Query(20, ge=1, le=100, description="Размер страницы"),
         current_teacher: User = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db)
 ):
-    courses = await course_service.get_my_courses(current_teacher, db)
-    return courses
+    data = await course_service.get_my_courses(
+        current_teacher, db, search, page, page_size, role
+    )
+    return data
 
 
 @teacher_router.get(

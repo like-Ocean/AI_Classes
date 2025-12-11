@@ -1,6 +1,8 @@
 from datetime import datetime
+from math import ceil
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from models import (
@@ -10,6 +12,7 @@ from models import (
 )
 from helpers.teacher.test_list_helper import load_module_tests
 from models.Enums import RoleType, ApplicationStatus
+from schemas.enums import CourseRoleFilter
 from schemas.course import (
     CourseCreateRequest, CourseUpdateRequest, ModuleCreateRequest,
     ModuleUpdateRequest
@@ -71,26 +74,68 @@ async def create_course(data: CourseCreateRequest, creator: User, db: AsyncSessi
     return course
 
 
-async def get_my_courses(user: User, db: AsyncSession):
-    creator_query = select(Course).options(
-        selectinload(Course.creator)
-    ).where(Course.creator_id == user.id)
+async def get_my_courses(
+        user: User, db: AsyncSession,
+        search: Optional[str] = None,
+        page: int = 1, page_size: int = 20,
+        role: CourseRoleFilter = CourseRoleFilter.all
+):
+    creator_query = (
+        select(Course)
+        .options(selectinload(Course.creator))
+        .where(Course.creator_id == user.id)
+    )
+
     editor_query = (
         select(Course)
         .options(selectinload(Course.creator))
         .join(CourseEditor, Course.id == CourseEditor.course_id)
         .where(CourseEditor.user_id == user.id)
     )
+    if search:
+        search_filter = or_(
+            Course.title.ilike(f"%{search}%"),
+            Course.description.ilike(f"%{search}%")
+        )
+        creator_query = creator_query.where(search_filter)
+        editor_query = editor_query.where(search_filter)
 
-    creator_result = await db.execute(creator_query)
-    editor_result = await db.execute(editor_query)
+    if role == CourseRoleFilter.created:
+        creator_result = await db.execute(creator_query)
+        created_courses = list(creator_result.scalars().all())
+        courses_list = created_courses
 
-    created_courses = list(creator_result.scalars().all())
-    editor_courses = list(editor_result.scalars().all())
+    elif role == CourseRoleFilter.editor:
+        editor_result = await db.execute(editor_query)
+        editor_courses = list(editor_result.scalars().all())
+        courses_list = editor_courses
 
-    all_courses = {course.id: course for course in created_courses + editor_courses}
+    else:
+        creator_result = await db.execute(creator_query)
+        editor_result = await db.execute(editor_query)
 
-    return list(all_courses.values())
+        created_courses = list(creator_result.scalars().all())
+        editor_courses = list(editor_result.scalars().all())
+
+        all_courses = {course.id: course for course in created_courses + editor_courses}
+        courses_list = list(all_courses.values())
+
+    courses_list.sort(key=lambda c: c.created_at, reverse=True)
+
+    total = len(courses_list)
+    total_pages = ceil(total / page_size) if total > 0 else 0
+
+    start = (page - 1) * page_size
+    end = start + page_size
+    paginated_courses = courses_list[start:end]
+
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+        "courses": paginated_courses
+    }
 
 
 async def get_course_detail(course_id: int, user: User, db: AsyncSession):

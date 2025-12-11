@@ -24,9 +24,9 @@ class TranscriptionService:
                     device=self.device,
                     compute_type=self.compute_type
                 )
-                print("✅ Faster-Whisper loaded")
+                print("Faster-Whisper loaded")
             except Exception as e:
-                print(f"❌ Failed to load Faster-Whisper: {str(e)}")
+                print(f"Failed to load Faster-Whisper: {str(e)}")
                 raise
 
     def _transcribe_sync(self, video_path: str, language: str = 'ru') -> Optional[str]:
@@ -48,11 +48,9 @@ class TranscriptionService:
                 transcript_parts.append(segment.text)
 
             transcript = " ".join(transcript_parts).strip()
-            print(f"Transcription completed: {len(transcript)} chars")
-            print(f"Detected language: {info.language} (probability: {info.language_probability:.2f})")
             return transcript
         except Exception as e:
-            print(f"   ❌ Transcription error: {str(e)}")
+            print(f"Transcription error: {str(e)}")
             traceback.print_exc()
             return None
 
@@ -78,7 +76,7 @@ class TranscriptionService:
             return transcript
 
         except Exception as e:
-            print(f"❌ Async transcription error: {str(e)}")
+            print(f"Async transcription error: {str(e)}")
             traceback.print_exc()
             return None
 

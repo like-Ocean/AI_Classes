@@ -53,10 +53,9 @@ class DocumentProcessor:
     async def extract_text_from_file(
             self, file_path: str, file_type: str
     ) -> Optional[str]:
-        """Извлечение текста из файла"""
-        print(f"   🔧 DocumentProcessor.extract_text_from_file")
-        print(f"      Path: {file_path}")
-        print(f"      Type: {file_type}")
+        print(f"DocumentProcessor.extract_text_from_file")
+        print(f"Path: {file_path}")
+        print(f"Type: {file_type}")
 
         try:
             if file_type.lower() == '.pdf':
@@ -72,17 +71,17 @@ class DocumentProcessor:
                 print(f"Calling _extract_from_image")
                 text = await self._extract_from_image(file_path)
             else:
-                print(f"❌ Unsupported file type: {file_type}")
+                print(f"Unsupported file type: {file_type}")
                 return None
 
             if text:
                 text = self._clean_text(text)
-                print(f"✅ Text cleaned: {len(text)} chars")
+                print(f"Text cleaned: {len(text)} chars")
 
             return text
 
         except Exception as e:
-            print(f"❌ Error extracting text: {str(e)}")
+            print(f"Error extracting text: {str(e)}")
             import traceback
             traceback.print_exc()
             return None
@@ -97,10 +96,10 @@ class DocumentProcessor:
                     if page_text:
                         text += f"=== Страница {i} ===\n{page_text}\n\n"
 
-            print(f"✅ Used pdfplumber for extraction")
+            print(f"Used pdfplumber for extraction")
 
         except ImportError:
-            print(f"⚠️ pdfplumber not installed, using PyPDF2")
+            print(f"pdfplumber not installed, using PyPDF2")
             try:
                 reader = PdfReader(file_path)
                 for i, page in enumerate(reader.pages, 1):
@@ -108,10 +107,10 @@ class DocumentProcessor:
                     if page_text:
                         text += f"=== Страница {i} ===\n{page_text}\n\n"
             except Exception as e:
-                print(f"❌ PyPDF2 extraction error: {str(e)}")
+                print(f"PyPDF2 extraction error: {str(e)}")
 
         except Exception as e:
-            print(f"❌ PDF extraction error: {str(e)}")
+            print(f"PDF extraction error: {str(e)}")
 
         return text.strip()
 
@@ -123,7 +122,7 @@ class DocumentProcessor:
             for paragraph in doc.paragraphs:
                 text += paragraph.text + "\n"
         except Exception as e:
-            print(f"❌ DOCX extraction error: {str(e)}")
+            print(f"DOCX extraction error: {str(e)}")
 
         return text.strip()
 
@@ -133,7 +132,7 @@ class DocumentProcessor:
             with open(file_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except Exception as e:
-            print(f"❌ TXT reading error: {str(e)}")
+            print(f"TXT reading error: {str(e)}")
             return ""
 
     async def _extract_from_image(self, file_path: str) -> str:
@@ -144,7 +143,7 @@ class DocumentProcessor:
         self._init_ocr()
         if self.ocr_engine and self.ocr_engine is not False:
             try:
-                print(f"   🚀 Running PaddleOCR...")
+                print(f"Running PaddleOCR...")
                 result = self.ocr_engine.ocr(file_path)
 
                 if result and result[0]:
@@ -159,11 +158,11 @@ class DocumentProcessor:
                     return ""
 
             except Exception as e:
-                print(f"   ⚠️ PaddleOCR runtime error: {str(e)}")
+                print(f"PaddleOCR runtime error: {str(e)}")
                 import traceback
                 traceback.print_exc()
         else:
-            print(f"   ⚠️ PaddleOCR engine not available (state: {self.ocr_engine})")
+            print(f"PaddleOCR engine not available (state: {self.ocr_engine})")
         return ""
 
     def chunk_text(self, text: str, max_chunk_size: int = 2000) -> List[str]:
@@ -175,7 +174,7 @@ class DocumentProcessor:
             chunks = self.chunker.chunk(text)
             return [chunk.text for chunk in chunks]
         except Exception as e:
-            print(f"      ❌ Chunking error: {str(e)}")
+            print(f"Chunking error: {str(e)}")
             return self._simple_chunk(text, max_chunk_size)
 
     def _simple_chunk(self, text: str, chunk_size: int) -> List[str]:

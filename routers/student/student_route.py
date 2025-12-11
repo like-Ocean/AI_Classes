@@ -321,9 +321,6 @@ async def submit_all_answers(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Отправить все ответы теста разом. Все вопросы видны сразу.
-    """
     result = await student_test_service.submit_test_all_at_once(
         course_id, module_id, material_id, test_id, attempt_id,
         [a.model_dump() for a in data.answers],
