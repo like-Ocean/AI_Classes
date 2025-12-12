@@ -108,7 +108,7 @@ class MyCoursesResponse(BaseModel):
 # MODULE WITH PROGRESS (МОДУЛЬ С ПРОГРЕССОМ)
 
 class MaterialProgressInfo(BaseModel):
-    material_id: int
+    id: int
     title: str
     type: str
     position: int

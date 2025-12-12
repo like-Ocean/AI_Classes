@@ -272,7 +272,7 @@ async def get_module_with_progress(
         )
 
         material_dict = {
-            "material_id": material.id,
+            "id": material.id,
             "title": material.title,
             "type": material.type.value,
             "position": material.position,
