@@ -1,4 +1,3 @@
-from datetime import datetime
 from math import ceil
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,17 +5,13 @@ from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from models import (
-    Course, Module, Material, CourseEditor,
-    User, MaterialFile, CourseApplication,
-    CourseEnrollment
+    Course, Material, CourseEditor, User, Module,
+    MaterialFile, CourseEnrollment, CourseProgress,
+    LessonProgress
 )
-from helpers.teacher.test_list_helper import load_module_tests
-from models.Enums import RoleType, ApplicationStatus
+from helpers.students.my_courses_helper import format_progress_data
 from schemas.enums import CourseRoleFilter
-from schemas.course import (
-    CourseCreateRequest, CourseUpdateRequest, ModuleCreateRequest,
-    ModuleUpdateRequest
-)
+from schemas.course import CourseCreateRequest, CourseUpdateRequest
 
 
 async def check_course_access(
@@ -248,348 +243,131 @@ async def delete_course(course_id: int, user: User, db: AsyncSession):
     await db.commit()
 
 
-async def create_module(
-        course_id: int, data: ModuleCreateRequest,
-        user: User, db: AsyncSession
+async def get_enrolled_students(
+        course_id: int, user: User, db: AsyncSession,
+        search: Optional[str] = None,
+        min_progress: Optional[int] = None,
+        page: int = 1, page_size: int = 50
 ):
-    await check_course_access(course_id, user, db)
-    module = Module(
-        course_id=course_id,
-        title=data.title,
-        position=data.position
-    )
-
-    db.add(module)
-    await db.commit()
-    await db.refresh(module)
-
-    return module
-
-
-async def get_module_detail(
-        course_id: int, module_id: int,
-        user: User, db: AsyncSession
-):
-    await check_course_access(course_id, user, db)
-    result = await db.execute(
-        select(Module)
-        .options(
-            selectinload(Module.materials)
-            .selectinload(Material.material_files)
-            .selectinload(MaterialFile.file)
-        )
-        .where(and_(Module.id == module_id, Module.course_id == course_id))
-    )
-    module = result.scalar_one_or_none()
-    if not module:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Module not found in this course"
-        )
-
-    module.materials.sort(key=lambda mat: mat.position)
-    for material in module.materials:
-        material.files = material.material_files
-
-    return module
-
-
-async def update_module(
-        course_id: int, module_id: int,
-        data: ModuleUpdateRequest,
-        user: User, db: AsyncSession
-):
-    await check_course_access(course_id, user, db)
-    result = await db.execute(
-        select(Module).where(
-            and_(Module.id == module_id, Module.course_id == course_id)
-        )
-    )
-    module = result.scalar_one_or_none()
-    if not module:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Module not found in this course"
-        )
-
-    if data.title is not None:
-        module.title = data.title
-    if data.position is not None:
-        module.position = data.position
-
-    await db.commit()
-    await db.refresh(module)
-
-    return module
-
-
-async def delete_module(
-        course_id: int, module_id: int,
-        user: User, db: AsyncSession
-):
-    await check_course_access(course_id, user, db)
-    result = await db.execute(
-        select(Module).where(
-            and_(Module.id == module_id, Module.course_id == course_id)
-        )
-    )
-    module = result.scalar_one_or_none()
-    if not module:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Module not found in this course"
-        )
-
-    await db.delete(module)
-    await db.commit()
-
-
-async def add_editor(
-        course_id: int, teacher_id: int,
-        user: User, db: AsyncSession
-):
-    course = await check_course_access(course_id, user, db, require_creator=True)
-    result = await db.execute(
-        select(User)
-        .options(selectinload(User.role))
-        .where(User.id == teacher_id)
-    )
-    teacher = result.scalar_one_or_none()
-
-    if not teacher:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Teacher not found"
-        )
-    if teacher.role.name not in [RoleType.teacher, RoleType.admin]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User must be a teacher or admin"
-        )
-
-    existing_editor = await db.execute(
-        select(CourseEditor).where(
-            and_(
-                CourseEditor.course_id == course_id,
-                CourseEditor.user_id == teacher_id
-            )
-        )
-    )
-    if existing_editor.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User is already an editor of this course"
-        )
-
-    editor = CourseEditor(
-        course_id=course_id, user_id=teacher_id,
-        granted_by=user.id
-    )
-
-    db.add(editor)
-    await db.commit()
-    await db.refresh(editor)
-
-    result = await db.execute(
-        select(CourseEditor)
-        .options(selectinload(CourseEditor.user))
-        .where(CourseEditor.id == editor.id)
-    )
-    editor_loaded = result.scalar_one()
-
-    return editor_loaded
-
-
-async def remove_editor(course_id: int, editor_id: int, user: User, db: AsyncSession):
-    await check_course_access(course_id, user, db, require_creator=True)
-    result = await db.execute(
-        select(CourseEditor).where(
-            and_(
-                CourseEditor.id == editor_id,
-                CourseEditor.course_id == course_id
-            )
-        )
-    )
-    editor = result.scalar_one_or_none()
-    if not editor:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Editor not found in this course"
-        )
-
-    await db.delete(editor)
-    await db.commit()
-
-
-async def get_course_editors(course_id: int, user: User, db: AsyncSession):
-    await check_course_access(course_id, user, db, require_creator=True)
-    result = await db.execute(
-        select(CourseEditor)
-        .options(selectinload(CourseEditor.user))
-        .where(CourseEditor.course_id == course_id)
-        .order_by(CourseEditor.granted_at.desc())
-    )
-    editors = result.scalars().all()
-    return list(editors)
-
-
-# APPLICATION MANAGEMENT
-async def get_course_applications(course_id: int, user: User, db: AsyncSession):
     await check_course_access(course_id, user, db, require_creator=False)
-    result = await db.execute(
-        select(CourseApplication)
-        .options(
-            selectinload(CourseApplication.user),
-            selectinload(CourseApplication.course).selectinload(Course.creator),
-            selectinload(CourseApplication.reviewer)
-        )
-        .where(CourseApplication.course_id == course_id)
-        .order_by(CourseApplication.applied_at.desc())
+    query = (
+        select(CourseEnrollment)
+        .options(selectinload(CourseEnrollment.user))
+        .where(CourseEnrollment.course_id == course_id)
     )
-    return list(result.scalars().all())
-
-
-async def approve_application(application_id: int, user: User, db: AsyncSession):
-    result = await db.execute(
-        select(CourseApplication)
-        .options(selectinload(CourseApplication.course))
-        .where(CourseApplication.id == application_id)
-    )
-    application = result.scalar_one_or_none()
-    if not application:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Application not found"
+    if search:
+        query = query.join(User, CourseEnrollment.user_id == User.id)
+        query = query.where(
+            or_(
+                User.full_name.ilike(f"%{search}%"),
+                User.email.ilike(f"%{search}%")
+            )
         )
 
-    await check_course_access(application.course_id, user, db, require_creator=False)
-    if application.status != ApplicationStatus.pending:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Application status is already '{application.status}'"
-        )
+    result = await db.execute(query)
+    all_enrollments = list(result.scalars().all())
 
-    enrollment_result = await db.execute(
-        select(CourseEnrollment).where(
+    user_ids = [e.user_id for e in all_enrollments]
+    progress_result = await db.execute(
+        select(CourseProgress).where(
             and_(
-                CourseEnrollment.user_id == application.user_id,
-                CourseEnrollment.course_id == application.course_id
+                CourseProgress.course_id == course_id,
+                CourseProgress.user_id.in_(user_ids)
             )
         )
     )
-    if enrollment_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Student is already enrolled in this course"
-        )
+    progresses = {p.user_id: p for p in progress_result.scalars().all()}
+    formatted_progresses = {}
+    for user_id, progress_obj in progresses.items():
+        formatted_progresses[user_id] = format_progress_data(progress_obj)
 
-    application.status = ApplicationStatus.approved
-    application.reviewed_at = datetime.utcnow()
-    application.reviewed_by = user.id
+    if min_progress is not None:
+        filtered_enrollments = [
+            e for e in all_enrollments
+            if e.user_id in formatted_progresses
+               and formatted_progresses[e.user_id]["progress_percentage"] >= min_progress
+        ]
+    else:
+        filtered_enrollments = all_enrollments
 
-    enrollment = CourseEnrollment(
-        user_id=application.user_id,
-        course_id=application.course_id
-    )
+    total = len(filtered_enrollments)
+    total_pages = ceil(total / page_size) if total > 0 else 0
 
-    db.add(enrollment)
-    await db.commit()
-    await db.refresh(application)
+    start = (page - 1) * page_size
+    end = start + page_size
+    paginated_enrollments = filtered_enrollments[start:end]
 
-    result = await db.execute(
-        select(CourseApplication)
-        .options(
-            selectinload(CourseApplication.user),
-            selectinload(CourseApplication.course).selectinload(Course.creator),
-            selectinload(CourseApplication.reviewer)
-        )
-        .where(CourseApplication.id == application.id)
-    )
-    application_loaded = result.scalar_one()
+    students_data = []
+    for enrollment in paginated_enrollments:
+        student_dict = {
+            "user": enrollment.user,
+            "progress": formatted_progresses.get(enrollment.user_id)
+        }
+        students_data.append(student_dict)
 
     return {
-        "id": application_loaded.id,
-        "user": application_loaded.user,
-        "course": application_loaded.course,
-        "status": application_loaded.status,
-        "applied_at": application_loaded.applied_at,
-        "reviewed_at": application_loaded.reviewed_at,
-        "reviewed_by": application_loaded.reviewer
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+        "students": students_data
     }
 
 
-async def reject_application(application_id: int, user: User, db: AsyncSession):
-    result = await db.execute(
-        select(CourseApplication)
-        .options(selectinload(CourseApplication.course))
-        .where(CourseApplication.id == application_id)
-    )
-    application = result.scalar_one_or_none()
-    if not application:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Application not found"
-        )
-
-    await check_course_access(application.course_id, user, db, require_creator=False)
-
-    if application.status != ApplicationStatus.pending:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Application status is already '{application.status}'"
-        )
-
-    application.status = ApplicationStatus.rejected
-    application.reviewed_at = datetime.utcnow()
-    application.reviewed_by = user.id
-
-    await db.commit()
-    await db.refresh(application)
-
-    result = await db.execute(
-        select(CourseApplication)
-        .options(
-            selectinload(CourseApplication.user),
-            selectinload(CourseApplication.course).selectinload(Course.creator),
-            selectinload(CourseApplication.reviewer)
-        )
-        .where(CourseApplication.id == application.id)
-    )
-    application_loaded = result.scalar_one()
-
-    return {
-        "id": application_loaded.id,
-        "user": application_loaded.user,
-        "course": application_loaded.course,
-        "status": application_loaded.status,
-        "applied_at": application_loaded.applied_at,
-        "reviewed_at": application_loaded.reviewed_at,
-        "reviewed_by": application_loaded.reviewer
-    }
-
-
-async def get_module_tests(
-        course_id: int, module_id: int,
+async def unenroll_student(
+        course_id: int, user_id: int,
         user: User, db: AsyncSession
 ):
-    await check_course_access(course_id, user, db)
-    tests = await load_module_tests(course_id, module_id, db)
-    tests_data = []
-    for test in tests:
-        test_dict = {
-            "id": test.id,
-            "title": test.title,
-            "material_id": test.material_id,
-            "module_id": module_id,
-            "num_questions": len(test.questions),
-            "time_limit_seconds": test.time_limit_seconds,
-            "pass_threshold": test.pass_threshold,
-            "status": test.status,
-            "generated_by_nn": test.generated_by_nn
-        }
-        tests_data.append(test_dict)
+    await check_course_access(course_id, user, db, require_creator=True)
+    result = await db.execute(
+        select(CourseEnrollment)
+        .options(selectinload(CourseEnrollment.user))
+        .where(
+            and_(
+                CourseEnrollment.user_id == user_id,
+                CourseEnrollment.course_id == course_id
+            )
+        )
+    )
+    enrollment = result.scalar_one_or_none()
+    if not enrollment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student is not enrolled in this course"
+        )
+
+    progress_result = await db.execute(
+        select(CourseProgress).where(
+            and_(
+                CourseProgress.course_id == course_id,
+                CourseProgress.user_id == user_id
+            )
+        )
+    )
+    progress = progress_result.scalar_one_or_none()
+    if progress:
+        await db.delete(progress)
+
+    lesson_progress_result = await db.execute(
+        select(LessonProgress)
+        .join(Material, LessonProgress.lesson_id == Material.id)
+        .join(Module, Material.module_id == Module.id)
+        .where(
+            and_(
+                Module.course_id == course_id,
+                LessonProgress.user_id == user_id
+            )
+        )
+    )
+    lesson_progresses = lesson_progress_result.scalars().all()
+    for lp in lesson_progresses:
+        await db.delete(lp)
+
+    await db.delete(enrollment)
+    await db.commit()
+
+    student_name = f"{enrollment.user.last_name} {enrollment.user.first_name}"
 
     return {
-        "tests": tests_data,
-        "total": len(tests_data)
+        "message": f"Student {student_name} unenrolled from course"
     }

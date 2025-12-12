@@ -192,3 +192,22 @@ class PublicCourseCard(BaseModel):
 
 class PaginatedPublicCoursesResponse(PaginatedCoursesResponse):
     courses: List[PublicCourseCard]
+
+
+class EnrolledStudentResponse(BaseModel):
+    user: UserResponse = Field(..., description="Студент")
+    progress: Optional[CourseProgressResponse] = Field(
+        None,
+        description="Прогресс студента (если есть)"
+    )
+
+    class Config:
+        from_attributes = True
+
+
+class EnrolledStudentsListResponse(BaseModel):
+    total: int
+    page: int = 1
+    page_size: int = 50
+    total_pages: int = 0
+    students: List[EnrolledStudentResponse] = []
