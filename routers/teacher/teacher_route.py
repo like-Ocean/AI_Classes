@@ -1,13 +1,11 @@
 from fastapi import (
     APIRouter, Depends, status, UploadFile,
-    File as FastAPIFile, HTTPException, Query
+    File as FastAPIFile, Query
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from core.database import get_db
-from sqlalchemy import select, and_
 from core.dependencies import get_current_teacher
-from models import Module, Material
 from service import course_service, file_service, material_service
 from models import User
 from schemas.enums import CourseRoleFilter
@@ -16,7 +14,7 @@ from schemas.course import (
     ModuleCreateRequest, ModuleUpdateRequest, CourseWithModulesResponse,
     ModuleResponse, ModuleWithMaterialsResponse,
     MaterialCreateRequest, MaterialUpdateRequest,
-    MaterialResponse, AddEditorRequest, EditorResponse
+    MaterialResponse, AddEditorRequest, EditorResponse, MaterialDetailForTeacher
 )
 from schemas.student import (
     CourseApplicationDetailResponse,
@@ -243,54 +241,23 @@ async def delete_material(
     return MessageResponse(message="Material successfully deleted")
 
 
-# FILES
-
 @teacher_router.get(
-    "/courses/{course_id}/modules/{module_id}/materials/{material_id}/content",
-    summary="Get material extracted content"
+    "/courses/{course_id}/modules/{module_id}/materials/{material_id}",
+    response_model=MaterialDetailForTeacher,
+    summary="Get material detail for teacher"
 )
-async def get_material_content(
-        course_id: int, module_id: int,
-        material_id: int,
+async def get_material_detail(
+        course_id: int, module_id: int, material_id: int,
         current_teacher: User = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db)
 ):
-    """
-    Просмотр извлечённого текста из файлов материала
-    !!!ТЕСТОВАЯ ТЕМА!!!
-    НУЖНО БУДЕТ УДАЛИТЬ
-    """
-    await course_service.check_course_access(course_id, current_teacher, db)
-
-    result = await db.execute(
-        select(Material)
-        .join(Module)
-        .where(
-            and_(
-                Material.id == material_id,
-                Module.id == module_id,
-                Module.course_id == course_id
-            )
-        )
+    material = await course_service.get_material_detail_for_teacher(
+        course_id, module_id, material_id, current_teacher, db
     )
-    material = result.scalar_one_or_none()
-
-    if not material:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Material not found"
-        )
-
-    return {
-        "material_id": material.id,
-        "title": material.title,
-        "text_content": material.text_content,
-        "trans": material.transcript,
-        "text_length": len(material.text_content) if material.text_content else 0,
-        "has_content": bool(material.text_content)
-    }
+    return material
 
 
+# FILES
 @teacher_router.post(
     "/files/upload",
     response_model=FileResponse,

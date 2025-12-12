@@ -4,6 +4,7 @@ from datetime import datetime
 from schemas.course import CourseResponse, MaterialFileInfo, ModuleResponse
 from schemas.user import UserResponse
 from models.Enums import ApplicationStatus, MaterialType
+from schemas.common import TestBriefInfo
 
 
 # COURSE APPLICATION (ЗАЯВКИ)
@@ -168,20 +169,9 @@ class MaterialDetailForStudent(BaseModel):
     position: int
     files: List[MaterialFileInfo] = []
     has_tests: bool = False
-    tests: List['TestBriefInfo'] = []
+    tests: List[TestBriefInfo] = []
     is_completed: bool = False
     completed_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-
-class TestBriefInfo(BaseModel):
-    id: int
-    title: str
-    num_questions: int
-    time_limit_seconds: Optional[int]
-    pass_threshold: int
 
     class Config:
         from_attributes = True

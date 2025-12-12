@@ -4,6 +4,7 @@ from datetime import datetime
 from models.Enums import MaterialType
 from schemas.user import UserResponse
 from schemas.file import FileResponse
+from schemas.common import TestBriefInfo
 
 
 # COURSE SCHEMAS
@@ -131,6 +132,23 @@ class EditorResponse(BaseModel):
     course_id: int
     granted_at: datetime
     granted_by: Optional[int]
+
+    class Config:
+        from_attributes = True
+
+
+class MaterialDetailForTeacher(BaseModel):
+    id: int
+    module: ModuleResponse
+    type: MaterialType
+    title: str
+    content_url: Optional[str]
+    text_content: Optional[str]
+    transcript: Optional[str]
+    position: int
+    files: List[MaterialFileInfo] = []
+    has_tests: bool = False
+    tests: List[TestBriefInfo] = []
 
     class Config:
         from_attributes = True

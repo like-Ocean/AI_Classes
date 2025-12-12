@@ -154,6 +154,75 @@ async def get_course_detail(course_id: int, user: User, db: AsyncSession):
     return course
 
 
+async def get_material_detail_for_teacher(
+        course_id: int, module_id: int,
+        material_id: int, user: User,
+        db: AsyncSession
+):
+    await check_course_access(course_id, user, db)
+    result = await db.execute(
+        select(Material)
+        .options(
+            selectinload(Material.module),
+            selectinload(Material.material_files).selectinload(MaterialFile.file),
+            selectinload(Material.tests)
+        )
+        .where(
+            and_(
+                Material.id == material_id,
+                Material.module_id == module_id
+            )
+        )
+    )
+    material = result.scalar_one_or_none()
+    if not material:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Material not found"
+        )
+
+    if material.module.course_id != course_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Material not found in this course"
+        )
+
+    return {
+        "id": material.id,
+        "module": {
+            "id": material.module.id,
+            "title": material.module.title,
+            "position": material.module.position,
+            "course_id": material.module.course_id
+        },
+        "type": material.type,
+        "title": material.title,
+        "content_url": material.content_url,
+        "text_content": material.text_content,
+        "transcript": material.transcript,
+        "position": material.position,
+        "files": [
+            {
+                "id": mf.id,
+                "file_id": mf.file_id,
+                "file": mf.file
+            }
+            for mf in material.material_files
+        ],
+        "has_tests": len(material.tests) > 0,
+        "tests": [
+            {
+                "id": test.id,
+                "title": test.title,
+                "num_questions": test.num_questions,
+                "time_limit_seconds": test.time_limit_seconds,
+                "pass_threshold": test.pass_threshold
+            }
+            for test in material.tests
+        ]
+    }
+
+
 async def update_course(
         course_id: int, data: CourseUpdateRequest,
         user: User, db: AsyncSession
