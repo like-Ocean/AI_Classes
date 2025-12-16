@@ -9,14 +9,12 @@ from models import (
     Course, Module, Material, User, CourseApplication,
     CourseEnrollment, LessonProgress, MaterialFile
 )
-from models.Enums import ApplicationStatus
 from helpers.students.access_helper import (
     check_course_enrollment, require_course_enrollment,
     check_material_lock, check_material_access
 )
 from helpers.students.course_loader import (
-    load_course_with_modules, load_course_with_creator,
-    get_materials_progress, get_passed_tests,
+    load_course_with_modules, get_materials_progress, get_passed_tests,
     update_course_progress_record,
     load_module_with_materials, get_course_with_progress_data
 )
@@ -121,92 +119,6 @@ async def get_course_public_detail(course_id: int, user: User, db: AsyncSession)
         is_enrolled=enrollment is not None,
         application_status=application.status if application else None
     )
-
-
-# APPLICATIONS (используется в роутах)
-
-async def apply_for_course(course_id: int, user: User, db: AsyncSession):
-    course = await load_course_with_creator(course_id, db)
-    enrollment = await check_course_enrollment(course_id, user, db, raise_error=False)
-    if enrollment:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You are already enrolled in this course"
-        )
-    application_result = await db.execute(
-        select(CourseApplication).where(
-            and_(
-                CourseApplication.user_id == user.id,
-                CourseApplication.course_id == course_id,
-                CourseApplication.status == ApplicationStatus.pending
-            )
-        )
-    )
-    if application_result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You already have a pending application for this course"
-        )
-    application = CourseApplication(
-        user_id=user.id,
-        course_id=course_id,
-        status=ApplicationStatus.pending
-    )
-
-    db.add(application)
-    await db.commit()
-    await db.refresh(application)
-
-    result = await db.execute(
-        select(CourseApplication)
-        .options(
-            selectinload(CourseApplication.course).selectinload(Course.creator)
-        )
-        .where(CourseApplication.id == application.id)
-    )
-    application_with_course = result.scalar_one()
-
-    return application_with_course
-
-
-async def get_my_applications(user: User, db: AsyncSession):
-    result = await db.execute(
-        select(CourseApplication)
-        .options(
-            selectinload(CourseApplication.course).selectinload(Course.creator),
-            selectinload(CourseApplication.reviewer)
-        )
-        .where(CourseApplication.user_id == user.id)
-        .order_by(CourseApplication.applied_at.desc())
-    )
-    return list(result.scalars().all())
-
-
-async def cancel_application(application_id: int, user: User, db: AsyncSession):
-    result = await db.execute(
-        select(CourseApplication).where(
-            and_(
-                CourseApplication.id == application_id,
-                CourseApplication.user_id == user.id
-            )
-        )
-    )
-    application = result.scalar_one_or_none()
-    if not application:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Application not found"
-        )
-
-    if application.status != ApplicationStatus.pending:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can only cancel pending applications"
-        )
-
-    await db.delete(application)
-    await db.commit()
-
 
 # MY COURSES
 

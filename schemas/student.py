@@ -26,6 +26,14 @@ class CourseApplicationResponse(BaseModel):
         from_attributes = True
 
 
+class PaginatedApplicationsResponse(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    applications: List[CourseApplicationResponse]
+
+
 class CourseApplicationDetailResponse(BaseModel):
     id: int
     user: UserResponse

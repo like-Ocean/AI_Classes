@@ -86,7 +86,6 @@ class QuestionResult(BaseModel):
     question_id: int
     question_text: str
     student_answer: Optional[Dict[str, Any]]
-    correct_option_ids: List[int]
     is_correct: bool
     hint_used: bool
     partial_score: int = Field(
@@ -107,7 +106,6 @@ class TestResultResponse(BaseModel):
     started_at: datetime
     finished_at: Optional[datetime]
     total_questions: int
-    correct_answers: int
     score: Optional[int]
     passed: Optional[bool]
     questions_results: List[QuestionResult] = []
@@ -184,3 +182,11 @@ class SubmitTestRequest(BaseModel):
             ]
         }
     }
+
+
+class QuestionHintResponse(BaseModel):
+    question_id: int
+    hint_text: str = Field(
+        ...,
+        description="Текст подсказки"
+    )

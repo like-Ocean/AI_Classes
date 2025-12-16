@@ -16,10 +16,7 @@ from models import (
 from models.Enums import QuestionType
 
 
-def calculate_question_score(
-        question: Question,
-        selected_option_ids: List[int]
-) -> tuple[bool, float]:
+def calculate_question_score(question: Question, selected_option_ids: List[int]) -> tuple[bool, float]:
     """
     Вычисление баллов за вопрос с частичным оцениванием.
 
@@ -344,7 +341,6 @@ async def get_test_result(attempt_id: int, user: User, db: AsyncSession):
     questions_results = []
 
     for question in attempt.test.questions:
-        correct_option_ids = [opt.id for opt in question.options if opt.is_correct]
         student_answer = answers_map.get(question.id)
 
         partial_score = 0.0
@@ -357,7 +353,6 @@ async def get_test_result(attempt_id: int, user: User, db: AsyncSession):
             "question_id": question.id,
             "question_text": question.text,
             "student_answer": student_answer.answer if student_answer else None,
-            "correct_option_ids": correct_option_ids,
             "is_correct": is_correct,
             "hint_used": student_answer.hint_used if student_answer else False,
             "partial_score": round(partial_score * 100),
@@ -373,7 +368,6 @@ async def get_test_result(attempt_id: int, user: User, db: AsyncSession):
         "started_at": attempt.started_at,
         "finished_at": attempt.finished_at,
         "total_questions": len(attempt.test.questions),
-        "correct_answers": sum(1 for qa in attempt.question_attempts if qa.is_correct),
         "score": attempt.score,
         "passed": attempt.passed,
         "questions_results": questions_results
@@ -536,5 +530,69 @@ async def submit_test_all_at_once(
         "blocked": attempt.blocked_until is not None,
         "consecutive_fails": consecutive_fails,
         "message": message
+    }
+
+
+async def get_question_hint(
+        course_id: int, module_id: int,
+        material_id: int, test_id: int,
+        attempt_id: int, question_id: int,
+        user: User, db: AsyncSession
+):
+    attempt = await get_test_attempt_with_validation(
+        attempt_id, test_id, user, db, load_test=True
+    )
+    await validate_attempt_not_finished(attempt)
+
+    question_result = await db.execute(
+        select(Question)
+        .where(
+            and_(
+                Question.id == question_id,
+                Question.test_id == test_id
+            )
+        )
+    )
+    question = question_result.scalar_one_or_none()
+    if not question:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Question not found in this test"
+        )
+
+    if not question.hint_text:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This question does not have a hint"
+        )
+
+    existing_answer_result = await db.execute(
+        select(QuestionAttempt).where(
+            and_(
+                QuestionAttempt.test_attempt_id == attempt_id,
+                QuestionAttempt.question_id == question_id
+            )
+        )
+    )
+    existing_answer = existing_answer_result.scalar_one_or_none()
+    if existing_answer:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You have already answered this question"
+        )
+
+    hint_usage = QuestionAttempt(
+        test_attempt_id=attempt_id,
+        question_id=question_id,
+        answer=None, is_correct=None,
+        hint_used=True, attempt_number=1
+    )
+    db.add(hint_usage)
+    await db.commit()
+    await db.refresh(hint_usage)
+
+    return {
+        "question_id": question.id,
+        "hint_text": question.hint_text
     }
 

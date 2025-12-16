@@ -11,6 +11,7 @@ from service import (
     module_service, application_service, editor_service
 )
 from models import User
+from models.Enums import ApplicationStatus
 from schemas.enums import CourseRoleFilter
 from schemas.course import (
     CourseCreateRequest, CourseUpdateRequest, CourseResponse,
@@ -21,7 +22,7 @@ from schemas.course import (
 )
 from schemas.student import (
     CourseApplicationDetailResponse,
-    CourseApplicationResponse, PaginatedCoursesResponse,
+    PaginatedApplicationsResponse, PaginatedCoursesResponse,
     EnrolledStudentsListResponse
 )
 from schemas.file import FileResponse, MaterialFileResponse
@@ -369,16 +370,22 @@ async def get_editors(
 
 @teacher_router.get(
     "/courses/{course_id}/applications",
-    response_model=List[CourseApplicationResponse],
+    response_model=PaginatedApplicationsResponse,
     summary="Get course applications"
 )
 async def get_applications(
         course_id: int,
+        status: Optional[ApplicationStatus] = Query(
+            None,
+            description="Фильтр по статусу: pending, approved, rejected"
+        ),
+        page: int = Query(1, ge=1, description="Номер страницы"),
+        page_size: int = Query(20, ge=1, le=100, description="Размер страницы"),
         current_teacher: User = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db)
 ):
     applications = await application_service.get_course_applications(
-        course_id, current_teacher, db
+        course_id, current_teacher, db, status, page, page_size
     )
     return applications
 

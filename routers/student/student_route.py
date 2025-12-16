@@ -3,18 +3,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from core.database import get_db
 from core.dependencies import get_current_user
-from service import student_service, student_test_service
+from service import student_service, student_test_service, application_service
 from models import User
+from models.Enums import ApplicationStatus
 from schemas.student import (
     CourseApplicationResponse, PaginatedCoursesResponse,
     MyCoursesResponse, LessonProgressResponse,
     ModuleWithProgressResponse, CourseCardResponse,
-    EnrolledCourseDetailResponse, MaterialDetailForStudent
+    EnrolledCourseDetailResponse, MaterialDetailForStudent,
+    PaginatedApplicationsResponse
 )
 from schemas.student_tests import (
     TestForStudent, TestAttemptResponse, SubmitAnswerRequest,
     QuestionAttemptResponse, TestResultResponse, MyTestAttemptSummary,
-    TestAttemptWithBlockResponse, SubmitTestRequest
+    TestAttemptWithBlockResponse, SubmitTestRequest, QuestionHintResponse
 )
 from schemas.auth import MessageResponse
 
@@ -73,7 +75,7 @@ async def apply_for_course(
         current_user: User = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ):
-    application = await student_service.apply_for_course(
+    application = await application_service.apply_for_course(
         course_id, current_user, db
     )
     return application
@@ -81,15 +83,21 @@ async def apply_for_course(
 
 @student_router.get(
     "/applications",
-    response_model=list[CourseApplicationResponse],
+    response_model=PaginatedApplicationsResponse,
     summary="Get my applications"
 )
 async def get_my_applications(
+        status: Optional[ApplicationStatus] = Query(
+            None,
+            description="Фильтр по статусу: pending, approved, rejected"
+        ),
+        page: int = Query(1, ge=1, description="Номер страницы"),
+        page_size: int = Query(20, ge=1, le=100, description="Размер страницы"),
         current_user: User = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ):
-    applications = await student_service.get_my_applications(
-        current_user, db
+    applications = await application_service.get_my_applications(
+        current_user, db, status, page, page_size
     )
     return applications
 
@@ -104,7 +112,7 @@ async def cancel_application(
         current_user: User = Depends(get_current_user),
         db: AsyncSession = Depends(get_db)
 ):
-    await student_service.cancel_application(
+    await application_service.cancel_application(
         application_id, current_user, db
     )
     return MessageResponse(message="Application cancelled successfully")
@@ -327,4 +335,29 @@ async def submit_all_answers(
         current_user, db
     )
     return result
+
+
+@student_router.get(
+    "/my-courses/{course_id}/modules/{module_id}/materials/{material_id}/tests/{test_id}/attempts/{attempt_id}/questions/{question_id}/hint",
+    response_model=QuestionHintResponse,
+    summary="Get question hint"
+)
+async def get_question_hint(
+        course_id: int, module_id: int,
+        material_id: int, test_id: int,
+        attempt_id: int, question_id: int,
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+):
+    """
+    доступна только:
+    - Во время активной попытки
+    - До отправки ответа на этот вопрос
+    - Если у вопроса есть подсказка
+    """
+    hint = await student_test_service.get_question_hint(
+        course_id, module_id, material_id, test_id,
+        attempt_id, question_id, current_user, db
+    )
+    return hint
 
