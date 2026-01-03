@@ -1,5 +1,7 @@
 from fastapi import HTTPException
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_
+from math import ceil
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from starlette import status
@@ -84,13 +86,43 @@ async def remove_editor(course_id: int, editor_id: int, user: User, db: AsyncSes
     await db.commit()
 
 
-async def get_course_editors(course_id: int, user: User, db: AsyncSession):
+async def get_course_editors(
+        course_id: int, user: User,
+        db: AsyncSession,
+        search: Optional[str] = None,
+        page: int = 1, page_size: int = 20
+):
     await check_course_access(course_id, user, db, require_creator=True)
-    result = await db.execute(
+    query = (
         select(CourseEditor)
         .options(selectinload(CourseEditor.user))
+        .join(CourseEditor.user)
         .where(CourseEditor.course_id == course_id)
-        .order_by(CourseEditor.granted_at.desc())
     )
-    editors = result.scalars().all()
-    return list(editors)
+
+    if search:
+        search_filter = or_(
+            User.email.ilike(f"%{search}%"),
+            User.first_name.ilike(f"%{search}%"),
+            User.last_name.ilike(f"%{search}%"),
+            User.patronymic.ilike(f"%{search}%"),
+            User.group_name.ilike(f"%{search}%")
+        )
+        query = query.where(search_filter)
+
+    query = query.order_by(CourseEditor.granted_at.desc())
+    result = await db.execute(query)
+    editors = list(result.scalars().all())
+    total = len(editors)
+    total_pages = ceil(total / page_size) if total > 0 else 0
+    start = (page - 1) * page_size
+    end = start + page_size
+    paginated_editors = editors[start:end]
+
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+        "editors": paginated_editors
+    }

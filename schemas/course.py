@@ -137,6 +137,14 @@ class EditorResponse(BaseModel):
         from_attributes = True
 
 
+class PaginatedEditorsResponse(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    editors: List[EditorResponse]
+
+
 class MaterialDetailForTeacher(BaseModel):
     id: int
     module: ModuleResponse

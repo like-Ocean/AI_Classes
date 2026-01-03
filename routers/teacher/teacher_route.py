@@ -18,7 +18,8 @@ from schemas.course import (
     ModuleCreateRequest, ModuleUpdateRequest, CourseWithModulesResponse,
     ModuleResponse, ModuleWithMaterialsResponse,
     MaterialCreateRequest, MaterialUpdateRequest,
-    MaterialResponse, AddEditorRequest, EditorResponse, MaterialDetailForTeacher
+    MaterialResponse, AddEditorRequest, EditorResponse,
+    MaterialDetailForTeacher, PaginatedEditorsResponse
 )
 from schemas.student import (
     CourseApplicationDetailResponse,
@@ -354,18 +355,24 @@ async def remove_editor(
 
 @teacher_router.get(
     "/courses/{course_id}/editors",
-    response_model=List[EditorResponse],
-    summary="Get course editors"
+    response_model=PaginatedEditorsResponse,
+    summary="Get course editors with pagination"
 )
 async def get_editors(
         course_id: int,
+        search: Optional[str] = Query(
+            None,
+            description="Поиск по имени, фамилии, отчеству или email"
+        ),
+        page: int = Query(1, ge=1, description="Номер страницы"),
+        page_size: int = Query(20, ge=1, le=100, description="Размер страницы"),
         current_teacher: User = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db)
 ):
-    editors = await editor_service.get_course_editors(
-        course_id, current_teacher, db
+    data = await editor_service.get_course_editors(
+        course_id, current_teacher, db, search, page, page_size
     )
-    return editors
+    return data
 
 
 @teacher_router.get(
