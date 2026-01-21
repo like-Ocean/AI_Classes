@@ -4,8 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 from models import (
-    TestAttempt, QuestionAttempt, Question, Test,
-    TestAttemptFeedback, Material, AnswerOption
+    TestAttempt, QuestionAttempt,
+    Question, Test, TestAttemptFeedback
 )
 from AI.ai_service import ai_service
 
@@ -13,8 +13,6 @@ from AI.ai_service import ai_service
 async def generate_feedback_for_attempt(
         test_attempt: TestAttempt, db: AsyncSession
 ) -> TestAttemptFeedback:
-    print(f"🔍 Starting feedback generation for attempt_id={test_attempt.id}")
-
     result = await db.execute(
         select(TestAttempt)
         .options(
@@ -27,13 +25,8 @@ async def generate_feedback_for_attempt(
         .where(TestAttempt.id == test_attempt.id)
     )
     attempt = result.scalar_one()
-    print(f"✅ Loaded attempt data")
-
     analysis = await _analyze_test_results_with_context(attempt, db)
-    print(f"✅ Analysis done: score={analysis['score']}, passed={analysis['passed']}")
-
     try:
-        print("🚀 Calling AI generate_feedback...")
         feedback_text = await ai_service.generate_feedback(
             material_title=analysis["material_title"],
             material_content=analysis["material_content"],
@@ -45,10 +38,8 @@ async def generate_feedback_for_attempt(
             partial_correct_count=analysis["partial_correct_count"],
             incorrect_questions_with_answers=analysis["incorrect_questions_with_answers"]
         )
-        print(f"✅ AI feedback generated ({len(feedback_text)} chars)")
     except Exception as e:
-        print(f"❌ AI feedback failed: {e}")
-        print(f"❌ Using fallback")
+        print(f"AI feedback failed: {e}")
         feedback_text = _create_fallback_feedback(analysis)
 
     feedback = TestAttemptFeedback(
@@ -58,18 +49,15 @@ async def generate_feedback_for_attempt(
     )
 
     db.add(feedback)
-    print("📝 Feedback object added to session")
 
     try:
         await db.commit()
-        print("✅ DB commit successful")
     except Exception as commit_error:
-        print(f"❌ DB commit failed: {commit_error}")
+        print(f"DB commit failed: {commit_error}")
         await db.rollback()
         raise
 
     await db.refresh(feedback)
-    print(f"✅ Feedback saved with id={feedback.id}")
     return feedback
 
 
