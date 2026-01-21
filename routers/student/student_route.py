@@ -3,7 +3,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
 from core.database import get_db
 from core.dependencies import get_current_user
-from service import student_service, student_test_service, application_service
+from service import (
+    student_service, student_test_service,
+    application_service, student_test_service_with_feedback
+)
 from models import User
 from models.Enums import ApplicationStatus
 from schemas.student import (
@@ -16,7 +19,8 @@ from schemas.student import (
 from schemas.student_tests import (
     TestForStudent, TestAttemptResponse, SubmitAnswerRequest,
     QuestionAttemptResponse, TestResultResponse, MyTestAttemptSummary,
-    TestAttemptWithBlockResponse, SubmitTestRequest, QuestionHintResponse
+    TestAttemptWithBlockResponse, SubmitTestRequest, QuestionHintResponse,
+    TestAttemptWithFeedbackResponse
 )
 from schemas.auth import MessageResponse
 
@@ -361,3 +365,23 @@ async def get_question_hint(
     )
     return hint
 
+
+# TODO: НУЖНО ПРОВЕРИТЬ КАК РАБОТАЕТ
+@student_router.post(
+    "/my-courses/{course_id}/modules/{module_id}/materials/{material_id}/tests/{test_id}/attempts/{attempt_id}/submit-with-feedback",
+    response_model=TestAttemptWithFeedbackResponse,
+    summary="Submit all test answers with AI feedback"
+)
+async def submit_all_answers_with_feedback(
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    attempt_id: int, data: SubmitTestRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await student_test_service_with_feedback.submit_test_with_feedback(
+        course_id, module_id, material_id, test_id, attempt_id,
+        [a.model_dump() for a in data.answers],
+        current_user, db
+    )
+    return result

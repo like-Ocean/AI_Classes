@@ -32,3 +32,9 @@ class TestAttempt(Base):
     test: Mapped["Test"] = relationship("Test", back_populates="attempts")
     user: Mapped["User"] = relationship("User")
     current_question: Mapped[Optional["Question"]] = relationship("Question")
+    feedback: Mapped["TestAttemptFeedback"] = relationship(
+        "TestAttemptFeedback",
+        back_populates="test_attempt",
+        cascade="all, delete-orphan"
+    )
+

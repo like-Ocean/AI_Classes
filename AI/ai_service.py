@@ -2,7 +2,7 @@ import httpx
 import json
 from typing import Dict, Any, List
 from core.config import settings
-from .prompts import get_test_generation_prompt, get_simple_test_prompt
+from .prompts import get_test_generation_prompt, get_simple_test_prompt, get_feedback_prompt
 
 
 class AIService:
@@ -16,10 +16,8 @@ class AIService:
             self.headers["Authorization"] = f"Bearer {self.api_key}"
 
     async def generate_test(
-            self,
-            material_content: str,
-            num_questions: int = 5,
-            question_types: List[str] = None
+            self, material_content: str,
+            num_questions: int = 5, question_types: List[str] = None
     ) -> Dict[str, Any]:
         if question_types is None:
             question_types = ["single", "multiple"]
@@ -73,6 +71,67 @@ class AIService:
             raise Exception(f"Invalid JSON in AI response: {str(e)}")
         except Exception as e:
             raise Exception(f"AI generation failed: {str(e)}")
+
+    async def generate_feedback(
+            self,
+            material_title: str, material_content: str,
+            score: int, passed: bool,
+            total_questions: int, correct_count: int,
+            incorrect_count: int, partial_correct_count: int,
+            incorrect_questions_with_answers: List[Dict[str, Any]]
+    ) -> str:
+        prompt = get_feedback_prompt(
+            material_title=material_title,
+            material_content=material_content,
+            score=score, passed=passed,
+            total_questions=total_questions,
+            correct_count=correct_count,
+            incorrect_count=incorrect_count,
+            partial_correct_count=partial_correct_count,
+            incorrect_questions_with_answers=incorrect_questions_with_answers
+        )
+
+        payload = {
+            "model": "deepseek-chat",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Ты - опытный преподаватель, который анализирует результаты тестов "
+                        "и даёт персонализированный конструктивный фидбек студентам."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 1000
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=settings.AI_TIMEOUT) as client:
+                response = await client.post(
+                    f"{self.base_url}/v1/chat/completions",
+                    headers=self.headers,
+                    json=payload
+                )
+
+                if response.status_code != 200:
+                    raise Exception(
+                        f"API error {response.status_code}: {response.text}"
+                    )
+
+                data = response.json()
+                feedback_text = data["choices"][0]["message"]["content"].strip()
+
+                return feedback_text
+
+        except httpx.TimeoutException:
+            raise Exception("AI feedback request timeout")
+        except Exception as e:
+            raise Exception(f"AI feedback generation failed: {str(e)}")
 
     def _parse_json_response(self, content: str) -> Dict[str, Any]:
         content = content.strip()

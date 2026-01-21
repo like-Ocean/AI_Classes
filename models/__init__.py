@@ -17,3 +17,4 @@ from .Question import Question
 from .AnswerOption import AnswerOption
 from .TestAttempt import TestAttempt
 from .QuestionAttempt import QuestionAttempt
+from .TestAttemptFeedback import TestAttemptFeedback

@@ -190,3 +190,23 @@ class QuestionHintResponse(BaseModel):
         ...,
         description="Текст подсказки"
     )
+
+
+class TestAttemptWithFeedbackResponse(BaseModel):
+    id: int
+    test_id: int
+    user_id: int
+    score: Optional[int]
+    passed: Optional[bool]
+    attempt_number: int
+    started_at: datetime
+    finished_at: Optional[datetime]
+    blocked_until: Optional[datetime]
+    current_question_id: Optional[int]
+    blocked: bool = Field(default=False)
+    consecutive_fails: int = Field(default=0)
+    feedback_text: Optional[str] = Field(None)
+    message: Optional[str] = Field(None)
+
+    class Config:
+        from_attributes = True
