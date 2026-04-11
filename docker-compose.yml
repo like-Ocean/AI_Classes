@@ -1,25 +1,4 @@
-version: "3.9"
-
 services:
-  app:
-    build: .
-    container_name: ai_classes_app
-    restart: always
-    env_file: .env
-    depends_on:
-      - db
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./:/app
-    environment:
-      DB_HOST: db
-    command: >
-      uvicorn main:app
-      --host 0.0.0.0
-      --port 8000
-      --reload
-
   db:
     image: postgres:16
     container_name: ai_classes_postgres
@@ -33,7 +12,40 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - internal
 
+  app:
+    build: .
+    container_name: ai_classes_app
+    restart: always
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+    environment:
+      DB_HOST: db
+      APP_HOST: "0.0.0.0"
+    command: sh -c "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    networks:
+      - internal
+      - shared-net
+
+networks:
+  internal:
+    driver: bridge
+  shared-net:
+    external: true
 
 volumes:
   postgres_data:

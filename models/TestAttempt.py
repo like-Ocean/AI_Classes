@@ -9,6 +9,13 @@ class TestAttempt(Base):
     __tablename__ = "test_attempts"
     __table_args__ = (
         Index("idx_user_test_attempt", "user_id", "test_id"),
+        Index(
+            "uq_test_attempt_active_user_test",
+            "user_id",
+            "test_id",
+            unique=True,
+            postgresql_where=text("finished_at IS NULL")
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

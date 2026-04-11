@@ -8,12 +8,24 @@ from chonkie import SemanticChunker
 class DocumentProcessor:
 
     def __init__(self):
-        self.chunker = SemanticChunker(
-            embedding_model="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
-            threshold=0.7,
-            chunk_size=2000
-        )
+        self.chunker = None
+        self._chunker_init_failed = False
         self.ocr_engine = None
+
+    def _init_chunker(self):
+        if self.chunker is not None or self._chunker_init_failed:
+            return
+
+        try:
+            self.chunker = SemanticChunker(
+                embedding_model="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+                threshold=0.7,
+                chunk_size=2000
+            )
+            print("SemanticChunker initialized")
+        except Exception as e:
+            print(f"Failed to initialize SemanticChunker: {str(e)}")
+            self._chunker_init_failed = True
 
     def _init_ocr(self):
         if self.ocr_engine is None:
@@ -171,6 +183,10 @@ class DocumentProcessor:
             return [text]
 
         try:
+            self._init_chunker()
+            if self.chunker is None:
+                return self._simple_chunk(text, max_chunk_size)
+
             chunks = self.chunker.chunk(text)
             return [chunk.text for chunk in chunks]
         except Exception as e:

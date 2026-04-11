@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from typing import Dict, Any, List
@@ -170,7 +171,14 @@ async def start_test_attempt(
     )
 
     db.add(attempt)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You have an active test attempt. Please finish it first."
+        )
     await db.refresh(attempt)
 
     return attempt
@@ -202,7 +210,7 @@ async def submit_answer(
             detail="Question not found in this test"
         )
 
-    existing_answer_result = await db.execute(
+    existing_attempt_result = await db.execute(
         select(QuestionAttempt).where(
             and_(
                 QuestionAttempt.test_attempt_id == attempt_id,
@@ -210,8 +218,8 @@ async def submit_answer(
             )
         )
     )
-    existing_answer = existing_answer_result.scalar_one_or_none()
-    if existing_answer:
+    existing_attempt = existing_attempt_result.scalar_one_or_none()
+    if existing_attempt and existing_attempt.answer is not None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="You have already answered this question"
@@ -225,6 +233,17 @@ async def submit_answer(
 
     answer_data_with_score = answer_data.copy()
     answer_data_with_score["partial_score"] = partial_score
+
+    if existing_attempt and existing_attempt.answer is None:
+        existing_attempt.answer = answer_data_with_score
+        existing_attempt.is_correct = is_fully_correct
+        existing_attempt.hint_used = existing_attempt.hint_used or hint_used
+        attempt.current_question_id = question_id
+
+        await db.commit()
+        await db.refresh(existing_attempt)
+
+        return existing_attempt
 
     question_attempt = QuestionAttempt(
         test_attempt_id=attempt_id,
@@ -257,7 +276,8 @@ async def finish_test_attempt(
     await validate_attempt_not_finished(attempt)
 
     total_questions = len(attempt.test.questions)
-    answered_questions = len(attempt.question_attempts)
+    answer_attempts = [qa for qa in attempt.question_attempts if qa.answer is not None]
+    answered_questions = len({qa.question_id for qa in answer_attempts})
     if answered_questions < total_questions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -265,8 +285,11 @@ async def finish_test_attempt(
         )
 
     total_score = 0.0
-    for qa in attempt.question_attempts:
-        partial_score = qa.answer.get("partial_score", 1.0 if qa.is_correct else 0.0)
+    for qa in answer_attempts:
+        if isinstance(qa.answer, dict):
+            partial_score = qa.answer.get("partial_score", 1.0 if qa.is_correct else 0.0)
+        else:
+            partial_score = 1.0 if qa.is_correct else 0.0
         total_score += partial_score
 
     score = round((total_score / total_questions * 100)) if total_questions > 0 else 0
@@ -570,7 +593,8 @@ async def get_question_hint(
         select(QuestionAttempt).where(
             and_(
                 QuestionAttempt.test_attempt_id == attempt_id,
-                QuestionAttempt.question_id == question_id
+                QuestionAttempt.question_id == question_id,
+                QuestionAttempt.answer.isnot(None)
             )
         )
     )
@@ -580,16 +604,6 @@ async def get_question_hint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="You have already answered this question"
         )
-
-    hint_usage = QuestionAttempt(
-        test_attempt_id=attempt_id,
-        question_id=question_id,
-        answer=None, is_correct=None,
-        hint_used=True, attempt_number=1
-    )
-    db.add(hint_usage)
-    await db.commit()
-    await db.refresh(hint_usage)
 
     return {
         "question_id": question.id,

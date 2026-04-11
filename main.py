@@ -5,7 +5,7 @@ from fastapi import FastAPI
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from core.database import engine, Base
+from core.database import engine
 from core.config import settings
 from core.init_db import init_database
 from routers import routes
@@ -17,9 +17,9 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if settings.ENV == "development" or settings.ENV == "production":
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        print("Database tables created")
+        # async with engine.begin() as conn:
+        #     await conn.run_sync(Base.metadata.create_all)
+        print("")
 
     try:
         await init_database()
@@ -44,7 +44,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['http://localhost:5173'],
+    allow_origins=["http://localhost:5000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

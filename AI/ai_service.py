@@ -219,11 +219,20 @@ class AIService:
 
                 if response.status_code == 200:
                     data = response.json()
-                    content = data["choices"]["message"]["content"]
+                    choices = data.get("choices")
+                    if not isinstance(choices, list) or not choices:
+                        raise Exception("Unexpected AI response format: missing choices")
+
+                    first_choice = choices[0]
+                    message = first_choice.get("message") if isinstance(first_choice, dict) else None
+                    content = message.get("content") if isinstance(message, dict) else None
+
+                    if not isinstance(content, str) or not content.strip():
+                        raise Exception("Unexpected AI response format: missing message content")
 
                     return {
                         "status": "success",
-                        "message": content,
+                        "message": content.strip(),
                         "model": "deepseek-chat",
                         "base_url": self.base_url
                     }

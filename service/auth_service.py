@@ -87,10 +87,26 @@ async def refresh_access_token(refresh_token_str: str, db: AsyncSession):
             detail="Invalid refresh token"
         )
 
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token"
+        )
+
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token"
+        )
+
     result = await db.execute(
         select(RefreshToken).where(
             RefreshToken.token == refresh_token_str,
-            RefreshToken.is_revoked == False
+            RefreshToken.user_id == user_id,
+            RefreshToken.is_revoked.is_(False)
         )
     )
     db_token = result.scalar_one_or_none()
@@ -107,15 +123,40 @@ async def refresh_access_token(refresh_token_str: str, db: AsyncSession):
             detail="Refresh token has expired"
         )
 
-    user_id = payload.get("sub")
     access_token = create_access_token(data={"sub": user_id})
 
     return access_token
 
 
 async def logout_user(refresh_token_str: str, db: AsyncSession):
+    payload = decode_token(refresh_token_str)
+    if not payload or payload.get("type") != "refresh":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token"
+        )
+
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token"
+        )
+
+    try:
+        user_id = int(user_id)
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token"
+        )
+
     result = await db.execute(
-        select(RefreshToken).where(RefreshToken.token == refresh_token_str)
+        select(RefreshToken).where(
+            RefreshToken.token == refresh_token_str,
+            RefreshToken.user_id == user_id,
+            RefreshToken.is_revoked.is_(False)
+        )
     )
     token = result.scalar_one_or_none()
 
