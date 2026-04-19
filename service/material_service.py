@@ -124,11 +124,6 @@ async def attach_files_to_material(
         material_id: int, file_ids: List[int],
         user: User, db: AsyncSession
 ):
-    """Прикрепление файлов с автоматическим извлечением текста"""
-    print(f"🔵 ATTACH FILES TO MATERIAL")
-    print(f"Material ID: {material_id}, File IDs: {file_ids}")
-    print(f"{'=' * 60}\n")
-
     await check_course_access(course_id, user, db)
     material = await get_material(db, material_id, module_id, course_id)
     files = await get_files(db, file_ids)
