@@ -1,7 +1,3 @@
-from enum import Enum
+from schemas.course import CourseRoleFilter
 
-
-class CourseRoleFilter(str, Enum):
-    all = "all"
-    created = "created"
-    editor = "editor"
+__all__ = ["CourseRoleFilter"]

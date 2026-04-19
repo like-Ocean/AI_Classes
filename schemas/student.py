@@ -5,6 +5,7 @@ from schemas.course import CourseResponse, MaterialFileInfo, ModuleResponse
 from schemas.user import UserResponse
 from models.Enums import ApplicationStatus, MaterialType
 from schemas.common import TestBriefInfo
+from schemas.base import ORMModel, PaginationMeta
 
 
 # COURSE APPLICATION (ЗАЯВКИ)
@@ -13,7 +14,7 @@ class CourseApplicationCreate(BaseModel):
     pass
 
 
-class CourseApplicationResponse(BaseModel):
+class CourseApplicationResponse(ORMModel):
     id: int
     course: CourseResponse
     user: UserResponse
@@ -22,19 +23,11 @@ class CourseApplicationResponse(BaseModel):
     reviewed_at: Optional[datetime]
     reviewer: Optional[UserResponse] = None
 
-    class Config:
-        from_attributes = True
-
-
-class PaginatedApplicationsResponse(BaseModel):
-    total: int
-    page: int
-    page_size: int
-    total_pages: int
+class PaginatedApplicationsResponse(PaginationMeta):
     applications: List[CourseApplicationResponse]
 
 
-class CourseApplicationDetailResponse(BaseModel):
+class CourseApplicationDetailResponse(ORMModel):
     id: int
     user: UserResponse
     course: CourseResponse
@@ -42,14 +35,11 @@ class CourseApplicationDetailResponse(BaseModel):
     applied_at: datetime
     reviewed_at: Optional[datetime]
     reviewer: Optional[UserResponse] = None
-
-    class Config:
-        from_attributes = True
 
 
 # COURSE CATALOG (КАТАЛОГ КУРСОВ)
 
-class CourseCardResponse(BaseModel):
+class CourseCardResponse(ORMModel):
     id: int
     title: str
     description: Optional[str]
@@ -59,30 +49,18 @@ class CourseCardResponse(BaseModel):
     is_enrolled: bool = False
     application_status: Optional[ApplicationStatus] = None
 
-    class Config:
-        from_attributes = True
-
-
-class PaginatedCoursesResponse(BaseModel):
-    total: int
-    page: int
-    page_size: int
-    total_pages: int
+class PaginatedCoursesResponse(PaginationMeta):
     courses: List[CourseCardResponse]
 
 
 # STUDENT PROGRESS (ПРОГРЕСС)
 
-class LessonProgressResponse(BaseModel):
+class LessonProgressResponse(ORMModel):
     id: int
     lesson_id: int
     completed_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
-class CourseProgressResponse(BaseModel):
+class CourseProgressResponse(ORMModel):
     id: int
     course_id: int
     user_id: int
@@ -91,22 +69,16 @@ class CourseProgressResponse(BaseModel):
     progress_percentage: float
     last_accessed_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 # ENROLLED COURSE (МОИ КУРСЫ)
 
-class EnrolledCourseResponse(BaseModel):
+class EnrolledCourseResponse(ORMModel):
     id: int
     title: str
     description: Optional[str]
     img_url: Optional[str]
     progress: Optional[CourseProgressResponse] = None
     application_status: Optional[ApplicationStatus] = None
-
-    class Config:
-        from_attributes = True
 
 
 class MyCoursesResponse(BaseModel):
@@ -166,7 +138,7 @@ class EnrolledCourseDetailResponse(BaseModel):
     modules: List[ModuleWithProgressResponse] = []
 
 
-class MaterialDetailForStudent(BaseModel):
+class MaterialDetailForStudent(ORMModel):
     id: int
     module: ModuleResponse
     type: MaterialType
@@ -181,12 +153,9 @@ class MaterialDetailForStudent(BaseModel):
     is_completed: bool = False
     completed_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
-
 
 # PUBLIC
-class PublicCourseCard(BaseModel):
+class PublicCourseCard(ORMModel):
     id: int
     title: str
     description: Optional[str]
@@ -194,27 +163,19 @@ class PublicCourseCard(BaseModel):
     creator: Optional[UserResponse] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
 
 class PaginatedPublicCoursesResponse(PaginatedCoursesResponse):
     courses: List[PublicCourseCard]
 
 
-class EnrolledStudentResponse(BaseModel):
+class EnrolledStudentResponse(ORMModel):
     user: UserResponse = Field(..., description="Студент")
     progress: Optional[CourseProgressResponse] = Field(
         None,
         description="Прогресс студента (если есть)"
     )
 
-    class Config:
-        from_attributes = True
-
-
-class EnrolledStudentsListResponse(BaseModel):
-    total: int
+class EnrolledStudentsListResponse(PaginationMeta):
     page: int = 1
     page_size: int = 50
     total_pages: int = 0
