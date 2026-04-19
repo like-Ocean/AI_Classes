@@ -2,24 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
-from models import CourseEnrollment, TestAttempt, User
-
-
-# TODO: удалить и заменить на from helpers.students.access_helper import require_course_enrollment
-async def check_course_enrollment(course_id: int, user: User, db: AsyncSession):
-    result = await db.execute(
-        select(CourseEnrollment).where(
-            and_(
-                CourseEnrollment.user_id == user.id,
-                CourseEnrollment.course_id == course_id
-            )
-        )
-    )
-    if not result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not enrolled in this course"
-        )
+from models import TestAttempt, User
 
 
 async def get_test_attempt_with_validation(

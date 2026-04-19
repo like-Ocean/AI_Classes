@@ -15,13 +15,17 @@ from helpers.students.access_helper import (
 )
 from helpers.students.course_loader import (
     load_course_with_modules, get_materials_progress, get_passed_tests,
-    update_course_progress_record,
-    load_module_with_materials, get_course_with_progress_data
+    load_module_with_materials
 )
 from helpers.students.my_courses_helper import (
     load_user_enrollments, load_pending_applications,
-    get_course_progress, format_progress_data,
-    format_course_card
+    get_course_progress
+)
+from helpers.students.progress_helper import (
+    update_course_progress_record, get_course_with_progress_data
+)
+from helpers.students.formatters import (
+    format_progress_data, format_course_card
 )
 
 

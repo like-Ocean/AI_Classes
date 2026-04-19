@@ -9,7 +9,7 @@ from models import (
     MaterialFile, CourseEnrollment, CourseProgress,
     LessonProgress
 )
-from helpers.students.my_courses_helper import format_progress_data
+from helpers.students.formatters import format_progress_data
 from schemas.enums import CourseRoleFilter
 from schemas.course import CourseCreateRequest, CourseUpdateRequest
 
