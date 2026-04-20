@@ -37,7 +37,16 @@ async def create_test(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Material not found in this module"
         )
-
+    
+    existing_test = await db.execute(
+        select(Test).where(Test.material_id == material_id)
+    )
+    if existing_test.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This material already has a test. Only one test per material is allowed."
+        )
+    
     test = Test(
         title=data.title,
         num_questions=data.num_questions,
