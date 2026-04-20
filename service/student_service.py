@@ -11,10 +11,10 @@ from models import (
 )
 from helpers.students.access_helper import (
     check_course_enrollment, require_course_enrollment,
-    check_material_lock, check_material_access
+    check_material_access
 )
 from helpers.students.course_loader import (
-    load_course_with_modules, get_materials_progress, get_passed_tests,
+    load_course_with_modules, get_materials_progress,
     load_module_with_materials
 )
 from helpers.students.my_courses_helper import (
@@ -169,23 +169,16 @@ async def get_module_with_progress(
     module = await load_module_with_materials(course_id, module_id, db)
     material_ids = [m.id for m in module.materials]
     progress_map = await get_materials_progress(user.id, material_ids, db)
-    test_ids = [t.id for m in module.materials for t in m.tests]
-    passed_test_ids = await get_passed_tests(user.id, test_ids, db)
 
     materials_data = []
     completed_count = 0
 
-    for i, material in enumerate(module.materials):
+    for material in module.materials:
         progress = progress_map.get(material.id)
         is_completed = progress is not None
 
         if is_completed:
             completed_count += 1
-
-        is_locked, lock_reason = check_material_lock(
-            material, i, module.materials,
-            progress_map, passed_test_ids
-        )
 
         material_dict = {
             "id": material.id,
@@ -194,8 +187,8 @@ async def get_module_with_progress(
             "position": material.position,
             "is_completed": is_completed,
             "completed_at": progress.completed_at if progress else None,
-            "is_locked": is_locked,
-            "lock_reason": lock_reason,
+            "is_locked": False,
+            "lock_reason": None,
             "has_tests": len(material.tests) > 0
         }
         materials_data.append(material_dict)

@@ -29,3 +29,8 @@ class Material(Base):
         back_populates="material",
         cascade="all, delete-orphan"
     )
+    comments: Mapped[List["Comment"]] = relationship(
+        "Comment",
+        back_populates="material",
+        cascade="all, delete-orphan"
+    )

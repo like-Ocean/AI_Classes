@@ -11,8 +11,8 @@ security = HTTPBearer()
 
 
 async def get_current_user(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
-        db: AsyncSession = Depends(get_db)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db)
 ) -> User:
     token = credentials.credentials
     payload = decode_token(token)
@@ -58,9 +58,8 @@ async def get_current_user(
 
 
 async def _ensure_user_has_role(
-        current_user: User,
-        allowed_roles: list[RoleType],
-        db: AsyncSession, error_detail: str
+    current_user: User, allowed_roles: list[RoleType],
+    db: AsyncSession, error_detail: str
 ) -> None:
     result = await db.execute(
         select(Role).where(Role.id == current_user.role_id)
@@ -75,8 +74,8 @@ async def _ensure_user_has_role(
 
 
 async def get_current_teacher(
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ) -> User:
     await _ensure_user_has_role(
         current_user=current_user,
@@ -89,8 +88,8 @@ async def get_current_teacher(
 
 
 async def get_current_admin(
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ) -> User:
     await _ensure_user_has_role(
         current_user=current_user,

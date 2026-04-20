@@ -23,10 +23,10 @@ async def init_roles(session: AsyncSession):
 
         session.add_all(roles)
         await session.commit()
-        print("✓ Roles initialized")
+        print("Roles initialized")
 
     except Exception as e:
-        print(f"✗ Error initializing roles: {str(e)}")
+        print(f"Error initializing roles: {str(e)}")
         await session.rollback()
         raise
 

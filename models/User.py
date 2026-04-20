@@ -60,5 +60,15 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+    comments: Mapped[List["Comment"]] = relationship(
+        "Comment",
+        back_populates="author",
+        cascade="all, delete-orphan"
+    )
+    comment_reactions: Mapped[List["CommentReaction"]] = relationship(
+        "CommentReaction",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("NOW()"), nullable=False)
