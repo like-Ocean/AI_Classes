@@ -19,12 +19,14 @@ class Settings(BaseSettings):
     APP_RELOAD: bool = True
     APP_LOG_LEVEL: str = "debug"
     APP_PROTOCOL: str = "http"
+    PASSWORD_RESET_URL: str = "http://localhost:5000/reset-password"
 
     # Security (JWT)
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
 
     # Admin
     ADMIN_EMAIL: str
