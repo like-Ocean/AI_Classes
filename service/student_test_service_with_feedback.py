@@ -11,7 +11,7 @@ from models import (
 )
 from datetime import datetime, timedelta
 from AI.feedback import generate_feedback_for_attempt
-from .student_test_service import calculate_question_score
+from .student_test_service import calculate_question_score, mark_material_completed_on_test_pass
 
 
 async def submit_test_with_feedback(
@@ -111,6 +111,12 @@ async def submit_test_with_feedback(
 
     await db.commit()
     await db.refresh(attempt)
+
+    if passed:
+        await mark_material_completed_on_test_pass(
+            user_id=user.id, material_id=material_id,
+            course_id=course_id, db=db
+        )
 
     feedback_text = None
     try:

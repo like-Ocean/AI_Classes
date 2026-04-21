@@ -10,9 +10,10 @@ from helpers.test_helper_service import (
     validate_attempt_not_finished, validate_attempt_finished,
     get_test_attempt_by_id
 )
+from helpers.students.course_loader import update_course_progress_record
 from models import (
     Test, Question, TestAttempt, QuestionAttempt,
-    Material, Module, CourseEnrollment, User
+    Material, Module, CourseEnrollment, User, LessonProgress
 )
 from models.Enums import QuestionType
 
@@ -52,6 +53,27 @@ def calculate_question_score(question: Question, selected_option_ids: List[int])
         return False, score
     else:
         return False, 0.0
+
+
+async def mark_material_completed_on_test_pass(
+    user_id: int, material_id: int,
+    course_id: int, db: AsyncSession
+):
+    progress_result = await db.execute(
+        select(LessonProgress).where(
+            and_(
+                LessonProgress.user_id == user_id,
+                LessonProgress.lesson_id == material_id
+            )
+        )
+    )
+    existing_progress = progress_result.scalar_one_or_none()
+
+    if not existing_progress:
+        db.add(LessonProgress(user_id=user_id, lesson_id=material_id))
+        await db.commit()
+
+    await update_course_progress_record(user_id, course_id, db)
 
 
 async def get_test_for_student(
@@ -327,6 +349,12 @@ async def finish_test_attempt(
     await db.commit()
     await db.refresh(attempt)
 
+    if passed:
+        await mark_material_completed_on_test_pass(
+            user_id=user.id, material_id=material_id,
+            course_id=course_id, db=db
+        )
+
     message = None
     if not passed:
         if consecutive_fails >= 2:
@@ -529,6 +557,12 @@ async def submit_test_all_at_once(
 
     await db.commit()
     await db.refresh(attempt)
+
+    if passed:
+        await mark_material_completed_on_test_pass(
+            user_id=user.id, material_id=material_id,
+            course_id=course_id, db=db
+        )
 
     message = None
     if not passed:
