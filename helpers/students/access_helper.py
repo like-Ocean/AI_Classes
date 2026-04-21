@@ -77,13 +77,13 @@ async def check_previous_material_completed(
     if previous_material.tests:
         for test in previous_material.tests:
             passed = await db.execute(
-                select(TestAttempt).where(
+                select(TestAttempt.id).where(
                     and_(
                         TestAttempt.test_id == test.id,
                         TestAttempt.user_id == user.id,
-                        TestAttempt.passed == True
+                        TestAttempt.passed.is_(True)
                     )
-                )
+                ).limit(1)
             )
             if not passed.scalar_one_or_none():
                 return False
