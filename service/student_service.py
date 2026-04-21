@@ -3,7 +3,6 @@ from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from typing import Optional
-from schemas.course import CourseResponse
 from math import ceil
 from models import (
     Course, Module, Material, User, CourseApplication,
@@ -27,9 +26,9 @@ from helpers.students.my_courses_helper import (
 
 # COURSE CATALOG
 async def get_available_courses(
-        user: User, db: AsyncSession,
-        search: Optional[str] = None,
-        page: int = 1, page_size: int = 20
+    user: User, db: AsyncSession,
+    search: Optional[str] = None,
+    page: int = 1, page_size: int = 20
 ):
     query = select(Course).options(selectinload(Course.creator))
 
@@ -65,14 +64,19 @@ async def get_available_courses(
     enrollments = {e.course_id: e for e in enrollments_result.scalars().all()}
 
     applications_result = await db.execute(
-        select(CourseApplication).where(
+        select(CourseApplication)
+        .where(
             and_(
                 CourseApplication.user_id == user.id,
                 CourseApplication.course_id.in_(course_ids)
             )
         )
+        .order_by(CourseApplication.applied_at.desc())
     )
-    applications = {a.course_id: a for a in applications_result.scalars().all()}
+    applications = {}
+    for application in applications_result.scalars().all():
+        if application.course_id not in applications:
+            applications[application.course_id] = application
 
     courses_data = []
     for course in courses:
@@ -101,24 +105,27 @@ async def get_course_public_detail(course_id: int, user: User, db: AsyncSession)
     course = await load_course_with_modules(course_id, db)
     enrollment = await check_course_enrollment(course_id, user, db, raise_error=False)
     application_result = await db.execute(
-        select(CourseApplication).where(
+        select(CourseApplication)
+        .where(
             and_(
                 CourseApplication.user_id == user.id,
                 CourseApplication.course_id == course_id
             )
         )
+        .order_by(CourseApplication.applied_at.desc())
+        .limit(1)
     )
     application = application_result.scalar_one_or_none()
-    return CourseResponse(
-        id=course.id,
-        title=course.title,
-        description=course.description,
-        img_url=course.img_url,
-        creator=course.creator,
-        created_at=course.created_at,
-        is_enrolled=enrollment is not None,
-        application_status=application.status if application else None
-    )
+    return {
+        "id": course.id,
+        "title": course.title,
+        "description": course.description,
+        "img_url": course.img_url,
+        "creator": course.creator,
+        "created_at": course.created_at,
+        "is_enrolled": enrollment is not None,
+        "application_status": application.status if application else None
+    }
 
 # MY COURSES
 
@@ -158,8 +165,8 @@ async def get_enrolled_course_detail(course_id: int, user: User, db: AsyncSessio
 
 # MODULE WITH PROGRESS
 async def get_module_with_progress(
-        course_id: int, module_id: int,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    user: User, db: AsyncSession
 ):
     await require_course_enrollment(course_id, user, db)
     module = await load_module_with_materials(course_id, module_id, db)
@@ -214,9 +221,9 @@ async def get_module_with_progress(
 # PROGRESS TRACKING
 
 async def mark_material_completed(
-        course_id: int, module_id: int,
-        material_id: int, user: User,
-        db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, user: User,
+    db: AsyncSession
 ):
     await require_course_enrollment(course_id, user, db)
     result = await db.execute(
@@ -262,9 +269,9 @@ async def update_course_progress(user_id: int, course_id: int, db: AsyncSession)
 
 
 async def get_material_detail(
-        course_id: int, module_id: int,
-        material_id: int, user: User,
-        db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, user: User,
+    db: AsyncSession
 ):
     access = await check_material_access(
         course_id, module_id, material_id, user, db
