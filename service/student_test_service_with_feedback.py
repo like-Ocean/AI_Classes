@@ -15,10 +15,10 @@ from .student_test_service import calculate_question_score, mark_material_comple
 
 
 async def submit_test_with_feedback(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        attempt_id: int, answers: List[Dict[str, Any]],
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    attempt_id: int, answers: List[Dict[str, Any]],
+    user: User, db: AsyncSession
 ) -> Dict[str, Any]:
 
     attempt = await get_test_attempt_with_validation(

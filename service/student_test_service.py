@@ -77,9 +77,9 @@ async def mark_material_completed_on_test_pass(
 
 
 async def get_test_for_student(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    user: User, db: AsyncSession
 ):
     await check_course_enrollment(course_id, user, db)
     result = await db.execute(
@@ -136,9 +136,9 @@ async def get_test_for_student(
 
 
 async def start_test_attempt(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    user: User, db: AsyncSession
 ):
     test = await get_test_for_student(
         course_id, module_id,
@@ -207,12 +207,12 @@ async def start_test_attempt(
 
 
 async def submit_answer(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        attempt_id: int, question_id: int,
-        answer_data: Dict[str, Any],
-        hint_used: bool, user: User,
-        db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    attempt_id: int, question_id: int,
+    answer_data: Dict[str, Any],
+    hint_used: bool, user: User,
+    db: AsyncSession
 ):
     attempt = await get_test_attempt_with_validation(
         attempt_id, test_id, user, db, load_test=True
@@ -286,10 +286,10 @@ async def submit_answer(
 
 
 async def finish_test_attempt(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        attempt_id: int, user: User,
-        db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    attempt_id: int, user: User,
+    db: AsyncSession
 ):
     attempt = await get_test_attempt_with_validation(
         attempt_id, test_id, user, db,
@@ -426,9 +426,9 @@ async def get_test_result(attempt_id: int, user: User, db: AsyncSession):
 
 
 async def get_my_test_attempts(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    user: User, db: AsyncSession
 ):
     await check_course_enrollment(course_id, user, db)
     result = await db.execute(
@@ -462,10 +462,10 @@ async def get_my_test_attempts(
 
 
 async def submit_test_all_at_once(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        attempt_id: int, answers: List[Dict[str, Any]],
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    attempt_id: int, answers: List[Dict[str, Any]],
+    user: User, db: AsyncSession
 ):
     attempt = await get_test_attempt_with_validation(
         attempt_id, test_id, user, db,
@@ -591,10 +591,10 @@ async def submit_test_all_at_once(
 
 
 async def get_question_hint(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        attempt_id: int, question_id: int,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    attempt_id: int, question_id: int,
+    user: User, db: AsyncSession
 ):
     attempt = await get_test_attempt_with_validation(
         attempt_id, test_id, user, db, load_test=True
