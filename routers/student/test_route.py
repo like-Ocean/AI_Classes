@@ -13,7 +13,7 @@ from schemas.student_tests import (
     QuestionHintResponse, TestAttemptWithFeedbackResponse,
 )
 
-student_test_router = APIRouter(tags=["Student"])
+student_test_router = APIRouter(tags=["Student / Тесты"])
 
 
 @student_test_router.get(

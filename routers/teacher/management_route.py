@@ -15,7 +15,7 @@ from schemas.student import (
 from schemas.file import FileResponse, MaterialFileResponse
 from schemas.auth import MessageResponse
 
-teacher_management_router = APIRouter(tags=["Teacher"])
+teacher_management_router = APIRouter(tags=["Teacher / Управление"])
 
 
 @teacher_management_router.post(

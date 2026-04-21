@@ -15,7 +15,7 @@ from schemas.student import (
 )
 from schemas.auth import MessageResponse
 
-student_catalog_router = APIRouter(tags=["Student"])
+student_catalog_router = APIRouter(tags=["Student / Каталог"])
 
 
 @student_catalog_router.get(

@@ -10,7 +10,7 @@ from schemas.comments import (
 from service import student_comment_service
 
 
-student_comment_router = APIRouter(tags=["Student"])
+student_comment_router = APIRouter(tags=["Student / Комментарии"])
 
 
 @student_comment_router.get(

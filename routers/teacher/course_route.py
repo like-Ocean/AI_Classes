@@ -18,7 +18,7 @@ from schemas.student import PaginatedCoursesResponse
 from schemas.auth import MessageResponse
 from schemas.tests import TestsListResponse
 
-teacher_course_router = APIRouter(tags=["Teacher"])
+teacher_course_router = APIRouter(tags=["Teacher / Курсы"])
 
 
 @teacher_course_router.post(
