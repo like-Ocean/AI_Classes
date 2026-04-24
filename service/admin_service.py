@@ -5,14 +5,28 @@ from typing import Optional
 from models import User, Role, Course, CourseEnrollment, CourseApplication
 from models.Enums import RoleType
 from core.security import get_password_hash
+from core.email_service import send_teacher_role_change_email
 from schemas.admin import (
     CreateUserRequest, UpdateUserRequest,
     StatisticsResponse
 )
 
 
-# возможно сделать чтобы после создания пользователя с указанной
-# почтой на неё приходило уведомление о томы что вы были зареганы
+def _user_full_name(user: User) -> str:
+    parts = [user.first_name, user.last_name]
+    return " ".join(p for p in parts if p)
+
+
+def _is_teacher_transition(old_role: RoleType | None, new_role: RoleType | None) -> tuple[bool, bool]:
+    if old_role == new_role:
+        return False, False
+    if new_role == RoleType.teacher and old_role != RoleType.teacher:
+        return True, True
+    if old_role == RoleType.teacher and new_role != RoleType.teacher:
+        return True, False
+    return False, False
+
+
 async def create_user(data: CreateUserRequest, db: AsyncSession):
     result = await db.execute(
         select(User).where(User.email == data.email)
@@ -52,11 +66,10 @@ async def create_user(data: CreateUserRequest, db: AsyncSession):
 
 
 async def get_users_list(
-        db: AsyncSession,
-        page: int = 1,
-        page_size: int = 20,
-        role_filter: Optional[RoleType] = None,
-        search: Optional[str] = None
+    db: AsyncSession, page: int = 1,
+    page_size: int = 20,
+    role_filter: Optional[RoleType] = None,
+    search: Optional[str] = None
 ):
     query = select(User)
 
@@ -101,6 +114,12 @@ async def get_user_by_id(user_id: int, db: AsyncSession):
 
 async def update_user(user_id: int, data: UpdateUserRequest, db: AsyncSession):
     user = await get_user_by_id(user_id, db)
+    old_role_type: RoleType | None = None
+
+    if data.role is not None:
+        current_role_result = await db.execute(select(Role).where(Role.id == user.role_id))
+        current_role = current_role_result.scalar_one_or_none()
+        old_role_type = current_role.name if current_role else None
 
     if data.first_name is not None:
         user.first_name = data.first_name
@@ -124,6 +143,15 @@ async def update_user(user_id: int, data: UpdateUserRequest, db: AsyncSession):
     await db.commit()
     await db.refresh(user)
 
+    if data.role is not None:
+        changed, assigned = _is_teacher_transition(old_role_type, data.role)
+        if changed:
+            await send_teacher_role_change_email(
+                to_email=user.email,
+                full_name=_user_full_name(user),
+                assigned=assigned
+            )
+
     return user
 
 
@@ -141,10 +169,8 @@ async def delete_user(user_id: int, current_admin: User, db: AsyncSession):
 
 
 async def change_user_role(
-        user_id: int,
-        new_role: RoleType,
-        current_admin: User,
-        db: AsyncSession
+    user_id: int, new_role: RoleType,
+    current_admin: User, db: AsyncSession
 ):
     if user_id == current_admin.id:
         raise HTTPException(
@@ -165,10 +191,22 @@ async def change_user_role(
             detail=f"Role {new_role} not found"
         )
 
+    old_role_result = await db.execute(select(Role).where(Role.id == user.role_id))
+    old_role = old_role_result.scalar_one_or_none()
+    old_role_type = old_role.name if old_role else None
+
     user.role_id = role.id
 
     await db.commit()
     await db.refresh(user)
+
+    changed, assigned = _is_teacher_transition(old_role_type, new_role)
+    if changed:
+        await send_teacher_role_change_email(
+            to_email=user.email,
+            full_name=_user_full_name(user),
+            assigned=assigned
+        )
 
     return user
 

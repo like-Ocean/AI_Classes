@@ -10,9 +10,7 @@ from models import (
 from AI.ai_service import ai_service
 
 
-async def generate_feedback_for_attempt(
-        test_attempt: TestAttempt, db: AsyncSession
-) -> TestAttemptFeedback:
+async def generate_feedback_for_attempt(test_attempt: TestAttempt, db: AsyncSession) -> TestAttemptFeedback:
     result = await db.execute(
         select(TestAttempt)
         .options(

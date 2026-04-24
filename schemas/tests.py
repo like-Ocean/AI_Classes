@@ -1,6 +1,17 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from models.Enums import QuestionType
+from schemas.base import ORMModel, PaginationMeta
+
+
+class GenerateTestRequest(BaseModel):
+    num_questions: int = Field(5, ge=3, le=20, description="Количество вопросов (3-20)")
+    question_types: List[str] = Field(
+        default=["single", "multiple"],
+        description="Типы вопросов"
+    )
+    pass_threshold: int = Field(70, ge=0, le=100, description="Проходной балл (%)")
+    time_limit_minutes: int = Field(15, ge=5, le=180, description="Лимит времени (мин)")
 
 
 class TestCreateRequest(BaseModel):
@@ -19,7 +30,7 @@ class TestUpdateRequest(BaseModel):
     status: Optional[str] = Field(None, description="draft или published")
 
 
-class TestResponse(BaseModel):
+class TestResponse(ORMModel):
     id: int
     title: str
     num_questions: int
@@ -31,23 +42,17 @@ class TestResponse(BaseModel):
     module_id: Optional[int]
     material_id: Optional[int]
 
-    class Config:
-        from_attributes = True
-
 
 class AnswerOptionCreate(BaseModel):
     content: str = Field(..., min_length=1)
     is_correct: bool = Field(..., description="Правильный ли это ответ")
 
 
-class AnswerOptionResponse(BaseModel):
+class AnswerOptionResponse(ORMModel):
     id: int
     question_id: int
     content: str
     is_correct: bool
-
-    class Config:
-        from_attributes = True
 
 
 class QuestionCreateRequest(BaseModel):
@@ -68,7 +73,7 @@ class QuestionUpdateRequest(BaseModel):
     hint_text: Optional[str] = None
 
 
-class QuestionResponse(BaseModel):
+class QuestionResponse(ORMModel):
     id: int
     test_id: int
     text: str
@@ -76,9 +81,6 @@ class QuestionResponse(BaseModel):
     position: int
     hint_text: Optional[str]
     options: List[AnswerOptionResponse] = []
-
-    class Config:
-        from_attributes = True
 
 
 class TestWithQuestionsResponse(TestResponse):
@@ -90,7 +92,7 @@ class AnswerOptionUpdate(BaseModel):
     is_correct: Optional[bool] = None
 
 
-class TestSummaryResponse(BaseModel):
+class TestSummaryResponse(ORMModel):
     id: int
     title: str
     material_id: int
@@ -101,10 +103,5 @@ class TestSummaryResponse(BaseModel):
     status: str
     generated_by_nn: bool
 
-    class Config:
-        from_attributes = True
-
-
-class TestsListResponse(BaseModel):
+class TestsListResponse(PaginationMeta):
     tests: List[TestSummaryResponse]
-    total: int

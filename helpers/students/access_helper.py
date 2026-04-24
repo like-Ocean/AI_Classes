@@ -8,7 +8,7 @@ from typing import Optional, Set
 
 
 async def check_course_enrollment(
-        course_id: int, user: User, db: AsyncSession, raise_error: bool = True
+    course_id: int, user: User, db: AsyncSession, raise_error: bool = True
 ) -> CourseEnrollment | None:
     result = await db.execute(
         select(CourseEnrollment).where(
@@ -34,8 +34,8 @@ async def require_course_enrollment(course_id: int, user: User, db: AsyncSession
 
 
 async def get_material_with_validation(
-        course_id: int, module_id: int,
-        material_id: int, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, db: AsyncSession
 ) -> Material:
     result = await db.execute(
         select(Material)
@@ -70,10 +70,7 @@ async def get_module_materials(module_id: int, db: AsyncSession) -> list[Materia
     return list(result.scalars().all())
 
 
-async def check_previous_material_completed(
-        previous_material: Material,
-        user: User, db: AsyncSession
-):
+async def check_previous_material_completed(previous_material: Material, user: User, db: AsyncSession):
     if previous_material.tests:
         for test in previous_material.tests:
             passed = await db.execute(
@@ -101,9 +98,9 @@ async def check_previous_material_completed(
 
 
 def check_material_lock(
-        material: Material, material_index: int,
-        all_materials: list[Material],
-        progress_map: dict, passed_test_ids: Set[int]
+    material: Material, material_index: int,
+    all_materials: list[Material],
+    progress_map: dict, passed_test_ids: Set[int]
 ):
     if material_index == 0:
         return False, None
@@ -127,32 +124,14 @@ def check_material_lock(
 
 
 async def check_material_access(
-        course_id: int, module_id: int,
-        material_id: int, user: User,
-        db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, user: User,
+    db: AsyncSession
 ):
     await require_course_enrollment(course_id, user, db)
     material = await get_material_with_validation(
         course_id, module_id, material_id, db
     )
-    all_materials = await get_module_materials(module_id, db)
-    current_position = next(
-        (i for i, m in enumerate(all_materials) if m.id == material_id),
-        None
-    )
-    if current_position is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Material not found in module"
-        )
-    if current_position > 0:
-        previous_material = all_materials[current_position - 1]
-
-        if not await check_previous_material_completed(previous_material, user, db):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"You must complete '{previous_material.title}' before accessing this material"
-            )
 
     return {
         "access_granted": True,

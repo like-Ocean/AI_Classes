@@ -2,19 +2,17 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from models.Enums import QuestionType
+from schemas.base import ORMModel
 
 
 # TEST FOR STUDENT (БЕЗ ПРАВИЛЬНЫХ ОТВЕТОВ)
 
-class TestOptionForStudent(BaseModel):
+class TestOptionForStudent(ORMModel):
     id: int
     content: str
 
-    class Config:
-        from_attributes = True
 
-
-class TestQuestionForStudent(BaseModel):
+class TestQuestionForStudent(ORMModel):
     id: int
     text: str
     type: QuestionType
@@ -22,11 +20,8 @@ class TestQuestionForStudent(BaseModel):
     hint_text: Optional[str]
     options: List[TestOptionForStudent] = []
 
-    class Config:
-        from_attributes = True
 
-
-class TestForStudent(BaseModel):
+class TestForStudent(ORMModel):
     id: int
     title: str
     num_questions: int
@@ -34,13 +29,10 @@ class TestForStudent(BaseModel):
     pass_threshold: int
     questions: List[TestQuestionForStudent] = []
 
-    class Config:
-        from_attributes = True
-
 
 # TEST ATTEMPT (ПОПЫТКА ПРОХОЖДЕНИЯ)
 
-class TestAttemptResponse(BaseModel):
+class TestAttemptBase(ORMModel):
     id: int
     test_id: int
     user_id: int
@@ -52,8 +44,9 @@ class TestAttemptResponse(BaseModel):
     blocked_until: Optional[datetime]
     current_question_id: Optional[int]
 
-    class Config:
-        from_attributes = True
+
+class TestAttemptResponse(TestAttemptBase):
+    pass
 
 
 # ANSWERS (ОТВЕТЫ СТУДЕНТА)
@@ -67,7 +60,7 @@ class SubmitAnswerRequest(BaseModel):
     hint_used: bool = Field(default=False, description="Была ли использована подсказка")
 
 
-class QuestionAttemptResponse(BaseModel):
+class QuestionAttemptResponse(ORMModel):
     id: int
     test_attempt_id: int
     question_id: int
@@ -75,9 +68,6 @@ class QuestionAttemptResponse(BaseModel):
     is_correct: Optional[bool]
     hint_used: bool
     attempt_number: int
-
-    class Config:
-        from_attributes = True
 
 
 # TEST RESULTS (РЕЗУЛЬТАТЫ)
@@ -113,7 +103,7 @@ class TestResultResponse(BaseModel):
 
 # MY ATTEMPTS (МОИ ПОПЫТКИ)
 
-class MyTestAttemptSummary(BaseModel):
+class MyTestAttemptSummary(ORMModel):
     id: int
     test_id: int
     test_title: str
@@ -123,37 +113,15 @@ class MyTestAttemptSummary(BaseModel):
     score: Optional[int]
     passed: Optional[bool]
 
-    class Config:
-        from_attributes = True
 
-
-class TestAttemptWithBlockResponse(BaseModel):
-    id: int
-    test_id: int
-    user_id: int
-    score: Optional[int]
-    passed: Optional[bool]
-    attempt_number: int
-    started_at: datetime
-    finished_at: Optional[datetime]
-    blocked_until: Optional[datetime]
-    current_question_id: Optional[int]
-
+class TestAttemptWithBlockResponse(TestAttemptBase):
     blocked: bool = Field(default=False, description="Заблокирован ли тест")
     consecutive_fails: int = Field(default=0, description="Провалов подряд")
     message: Optional[str] = Field(None, description="Сообщение для студента")
 
-    class Config:
-        from_attributes = True
 
-
-class QuestionAnswerBatch(BaseModel):
-    question_id: int
-    answer: Dict[str, Any] = Field(
-        ...,
-        example={"selected_option_ids": [1, 2]}
-    )
-    hint_used: bool = False
+class QuestionAnswerBatch(SubmitAnswerRequest):
+    pass
 
 
 class SubmitTestRequest(BaseModel):
@@ -192,21 +160,8 @@ class QuestionHintResponse(BaseModel):
     )
 
 
-class TestAttemptWithFeedbackResponse(BaseModel):
-    id: int
-    test_id: int
-    user_id: int
-    score: Optional[int]
-    passed: Optional[bool]
-    attempt_number: int
-    started_at: datetime
-    finished_at: Optional[datetime]
-    blocked_until: Optional[datetime]
-    current_question_id: Optional[int]
+class TestAttemptWithFeedbackResponse(TestAttemptBase):
     blocked: bool = Field(default=False)
     consecutive_fails: int = Field(default=0)
     feedback_text: Optional[str] = Field(None)
     message: Optional[str] = Field(None)
-
-    class Config:
-        from_attributes = True

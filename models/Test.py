@@ -40,3 +40,8 @@ class Test(Base):
         back_populates="test",
         cascade="all, delete-orphan"
     )
+    comments: Mapped[List["Comment"]] = relationship(
+        "Comment",
+        back_populates="test",
+        cascade="all, delete-orphan"
+    )

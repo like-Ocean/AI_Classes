@@ -1,10 +1,18 @@
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
+from enum import Enum
 from models.Enums import MaterialType
 from schemas.user import UserResponse
 from schemas.file import FileResponse
 from schemas.common import TestBriefInfo
+from schemas.base import ORMModel, PaginationMeta
+
+
+class CourseRoleFilter(str, Enum):
+    all = "all"
+    created = "created"
+    editor = "editor"
 
 
 # COURSE SCHEMAS
@@ -20,16 +28,13 @@ class CourseUpdateRequest(BaseModel):
     img_url: Optional[str] = Field(None, max_length=500)
 
 
-class CourseResponse(BaseModel):
+class CourseResponse(ORMModel):
     id: int
     title: str
     description: Optional[str]
     img_url: Optional[str]
     created_at: datetime
     creator: Optional[UserResponse] = None
-
-    class Config:
-        from_attributes = True
 
 
 # MODULE SCHEMAS
@@ -43,14 +48,11 @@ class ModuleUpdateRequest(BaseModel):
     position: Optional[int] = Field(None, ge=1)
 
 
-class ModuleResponse(BaseModel):
+class ModuleResponse(ORMModel):
     id: int
     title: str
     position: int
     course_id: int
-
-    class Config:
-        from_attributes = True
 
 
 # MATERIAL
@@ -90,16 +92,13 @@ class MaterialUpdateRequest(BaseModel):
     position: Optional[int] = Field(None, ge=1)
 
 
-class MaterialFileInfo(BaseModel):
+class MaterialFileInfo(ORMModel):
     id: int
     file_id: int
     file: FileResponse
 
-    class Config:
-        from_attributes = True
 
-
-class MaterialResponse(BaseModel):
+class MaterialResponse(ORMModel):
     id: int
     module_id: int
     type: MaterialType
@@ -109,9 +108,6 @@ class MaterialResponse(BaseModel):
     transcript: Optional[str]
     position: int
     files: List[MaterialFileInfo] = []
-
-    class Config:
-        from_attributes = True
 
 
 class CourseWithModulesResponse(CourseResponse):
@@ -126,26 +122,18 @@ class AddEditorRequest(BaseModel):
     user_id: int = Field(..., description="ID преподавателя")
 
 
-class EditorResponse(BaseModel):
+class EditorResponse(ORMModel):
     id: int
     user: UserResponse
     course_id: int
     granted_at: datetime
     granted_by: Optional[int]
 
-    class Config:
-        from_attributes = True
-
-
-class PaginatedEditorsResponse(BaseModel):
-    total: int
-    page: int
-    page_size: int
-    total_pages: int
+class PaginatedEditorsResponse(PaginationMeta):
     editors: List[EditorResponse]
 
 
-class MaterialDetailForTeacher(BaseModel):
+class MaterialDetailForTeacher(ORMModel):
     id: int
     module: ModuleResponse
     type: MaterialType
@@ -158,5 +146,3 @@ class MaterialDetailForTeacher(BaseModel):
     has_tests: bool = False
     tests: List[TestBriefInfo] = []
 
-    class Config:
-        from_attributes = True

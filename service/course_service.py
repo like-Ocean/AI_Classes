@@ -9,14 +9,14 @@ from models import (
     MaterialFile, CourseEnrollment, CourseProgress,
     LessonProgress
 )
-from helpers.students.my_courses_helper import format_progress_data
+from helpers.students.formatters import format_progress_data
 from schemas.enums import CourseRoleFilter
 from schemas.course import CourseCreateRequest, CourseUpdateRequest
 
 
 async def check_course_access(
-        course_id: int, user: User,
-        db: AsyncSession, require_creator: bool = False
+    course_id: int, user: User,
+    db: AsyncSession, require_creator: bool = False
 ):
     result = await db.execute(
         select(Course).where(Course.id == course_id)
@@ -70,10 +70,10 @@ async def create_course(data: CourseCreateRequest, creator: User, db: AsyncSessi
 
 
 async def get_my_courses(
-        user: User, db: AsyncSession,
-        search: Optional[str] = None,
-        page: int = 1, page_size: int = 20,
-        role: CourseRoleFilter = CourseRoleFilter.all
+    user: User, db: AsyncSession,
+    search: Optional[str] = None,
+    page: int = 1, page_size: int = 20,
+    role: CourseRoleFilter = CourseRoleFilter.all
 ):
     creator_query = (
         select(Course)
@@ -150,9 +150,9 @@ async def get_course_detail(course_id: int, user: User, db: AsyncSession):
 
 
 async def get_material_detail_for_teacher(
-        course_id: int, module_id: int,
-        material_id: int, user: User,
-        db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, user: User,
+    db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(
@@ -219,8 +219,8 @@ async def get_material_detail_for_teacher(
 
 
 async def update_course(
-        course_id: int, data: CourseUpdateRequest,
-        user: User, db: AsyncSession
+    course_id: int, data: CourseUpdateRequest,
+    user: User, db: AsyncSession
 ):
     course = await check_course_access(course_id, user, db)
 
@@ -244,10 +244,10 @@ async def delete_course(course_id: int, user: User, db: AsyncSession):
 
 
 async def get_enrolled_students(
-        course_id: int, user: User, db: AsyncSession,
-        search: Optional[str] = None,
-        min_progress: Optional[int] = None,
-        page: int = 1, page_size: int = 50
+    course_id: int, user: User, db: AsyncSession,
+    search: Optional[str] = None,
+    min_progress: Optional[int] = None,
+    page: int = 1, page_size: int = 50
 ):
     await check_course_access(course_id, user, db, require_creator=False)
     query = (
@@ -315,8 +315,8 @@ async def get_enrolled_students(
 
 
 async def unenroll_student(
-        course_id: int, user_id: int,
-        user: User, db: AsyncSession
+    course_id: int, user_id: int,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db, require_creator=True)
     result = await db.execute(

@@ -2,32 +2,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
-from models import CourseEnrollment, TestAttempt, User
-
-
-# TODO: удалить и заменить на from helpers.students.access_helper import require_course_enrollment
-async def check_course_enrollment(course_id: int, user: User, db: AsyncSession):
-    result = await db.execute(
-        select(CourseEnrollment).where(
-            and_(
-                CourseEnrollment.user_id == user.id,
-                CourseEnrollment.course_id == course_id
-            )
-        )
-    )
-    if not result.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You are not enrolled in this course"
-        )
+from models import TestAttempt, User
 
 
 async def get_test_attempt_with_validation(
-        attempt_id: int, test_id: int,
-        user: User, db: AsyncSession,
-        load_test: bool = False,
-        load_questions: bool = False,
-        load_answers: bool = False
+    attempt_id: int, test_id: int,
+    user: User, db: AsyncSession,
+    load_test: bool = False,
+    load_questions: bool = False,
+    load_answers: bool = False
 ) -> TestAttempt:
     query = select(TestAttempt)
     if load_test:
@@ -80,10 +63,10 @@ async def validate_attempt_finished(attempt: TestAttempt) -> None:
 
 
 async def get_test_attempt_by_id(
-        attempt_id: int, user: User,
-        db: AsyncSession, load_test: bool = False,
-        load_questions: bool = False,
-        load_answers: bool = False
+    attempt_id: int, user: User,
+    db: AsyncSession, load_test: bool = False,
+    load_questions: bool = False,
+    load_answers: bool = False
 ) -> TestAttempt:
     query = select(TestAttempt)
     if load_test:

@@ -19,12 +19,14 @@ class Settings(BaseSettings):
     APP_RELOAD: bool = True
     APP_LOG_LEVEL: str = "debug"
     APP_PROTOCOL: str = "http"
+    PASSWORD_RESET_URL: str = "http://localhost:5000/reset-password"
 
     # Security (JWT)
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
 
     # Admin
     ADMIN_EMAIL: str
@@ -55,6 +57,16 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "qwen2.5:3b"
 
+    # Email notifications (optional)
+    MAIL_USERNAME: str = ""
+    MAIL_PASSWORD: str = ""
+    MAIL_FROM: str = ""
+    MAIL_PORT: int = 587
+    MAIL_SERVER: str = ""
+    MAIL_STARTTLS: bool = True
+    MAIL_SSL_TLS: bool = False
+    USE_CREDENTIALS: bool = True
+
     @property
     def TIMEWEB_FULL_BASE_URL(self) -> str:
         return f"{self.TIMEWEB_BASE_URL}/api/v1/cloud-ai/agents/{self.TIMEWEB_AGENT_ACCESS_ID}"
@@ -66,6 +78,34 @@ class Settings(BaseSettings):
     @property
     def DATABASE_URL_SYNC(self) -> str:
         return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
+    @property
+    def EFFECTIVE_SMTP_HOST(self) -> str:
+        return self.MAIL_SERVER
+
+    @property
+    def EFFECTIVE_SMTP_PORT(self) -> int:
+        return self.MAIL_PORT
+
+    @property
+    def EFFECTIVE_SMTP_USERNAME(self) -> str:
+        return self.MAIL_USERNAME
+
+    @property
+    def EFFECTIVE_SMTP_PASSWORD(self) -> str:
+        return self.MAIL_PASSWORD
+
+    @property
+    def EFFECTIVE_SMTP_FROM_EMAIL(self) -> str:
+        return self.MAIL_FROM
+
+    @property
+    def EFFECTIVE_SMTP_USE_TLS(self) -> bool:
+        return self.MAIL_STARTTLS
+
+    @property
+    def EFFECTIVE_SMTP_USE_SSL(self) -> bool:
+        return self.MAIL_SSL_TLS
 
     model_config = SettingsConfigDict(
         env_file=".env",

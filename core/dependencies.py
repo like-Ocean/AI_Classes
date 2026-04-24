@@ -11,8 +11,8 @@ security = HTTPBearer()
 
 
 async def get_current_user(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
-        db: AsyncSession = Depends(get_db)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db)
 ) -> User:
     token = credentials.credentials
     payload = decode_token(token)
@@ -57,37 +57,45 @@ async def get_current_user(
     return user
 
 
-async def get_current_teacher(
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
-) -> User:
+async def _ensure_user_has_role(
+    current_user: User, allowed_roles: list[RoleType],
+    db: AsyncSession, error_detail: str
+):
     result = await db.execute(
         select(Role).where(Role.id == current_user.role_id)
     )
     role = result.scalar_one_or_none()
 
-    if not role or role.name not in [RoleType.teacher, RoleType.admin]:
+    if not role or role.name not in allowed_roles:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Teacher or admin role required.",
+            detail=error_detail,
         )
+
+
+async def get_current_teacher(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+) -> User:
+    await _ensure_user_has_role(
+        current_user=current_user,
+        allowed_roles=[RoleType.teacher, RoleType.admin],
+        db=db,
+        error_detail="Access denied. Teacher or admin role required."
+    )
 
     return current_user
 
 
 async def get_current_admin(
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ) -> User:
-    result = await db.execute(
-        select(Role).where(Role.id == current_user.role_id)
+    await _ensure_user_has_role(
+        current_user=current_user,
+        allowed_roles=[RoleType.admin],
+        db=db,
+        error_detail="Access denied. Admin role required."
     )
-    role = result.scalar_one_or_none()
-
-    if not role or role.name != RoleType.admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Admin role required.",
-        )
 
     return current_user

@@ -6,16 +6,18 @@ from fastapi import HTTPException, status
 from typing import Dict, Any, List
 from datetime import datetime, timedelta
 from helpers.test_helper_service import (
-    check_course_enrollment, get_test_attempt_with_validation,
+    get_test_attempt_with_validation,
     validate_attempt_not_finished, validate_attempt_finished,
     get_test_attempt_by_id
 )
-from helpers.students.course_loader import update_course_progress_record
+from helpers.students.access_helper import check_course_enrollment
+from helpers.students.progress_helper import update_course_progress_record
 from models import (
     Test, Question, TestAttempt, QuestionAttempt,
-    Material, Module, CourseEnrollment, User, LessonProgress
+    Material, Module, User, LessonProgress
 )
 from models.Enums import QuestionType
+from AI.feedback import generate_feedback_for_attempt
 
 
 def calculate_question_score(question: Question, selected_option_ids: List[int]) -> tuple[bool, float]:
@@ -465,7 +467,8 @@ async def submit_test_all_at_once(
     course_id: int, module_id: int,
     material_id: int, test_id: int,
     attempt_id: int, answers: List[Dict[str, Any]],
-    user: User, db: AsyncSession
+    user: User, db: AsyncSession,
+    generate_feedback: bool = False
 ):
     attempt = await get_test_attempt_with_validation(
         attempt_id, test_id, user, db,
@@ -565,6 +568,7 @@ async def submit_test_all_at_once(
         )
 
     message = None
+    feedback_text = None
     if not passed:
         if consecutive_fails >= 2:
             message = "Test failed twice. You are blocked for 5 minutes. Please review the material."
@@ -572,6 +576,13 @@ async def submit_test_all_at_once(
             message = f"Test failed. You have {3 - consecutive_fails} attempt(s) left before being blocked."
     else:
         message = "Test completed successfully"
+
+    if generate_feedback:
+        try:
+            feedback = await generate_feedback_for_attempt(attempt, db)
+            feedback_text = feedback.feedback_text
+        except Exception as e:
+            print(f"Feedback generation failed: {e}")
 
     return {
         "id": attempt.id,
@@ -586,6 +597,7 @@ async def submit_test_all_at_once(
         "current_question_id": attempt.current_question_id,
         "blocked": attempt.blocked_until is not None,
         "consecutive_fails": consecutive_fails,
+        "feedback_text": feedback_text,
         "message": message
     }
 

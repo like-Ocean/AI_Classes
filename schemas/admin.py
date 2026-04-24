@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, List
 from datetime import datetime
 from models.Enums import RoleType
+from schemas.base import ORMModel, PaginationMeta
 
 
 class CreateUserRequest(BaseModel):
@@ -22,7 +23,7 @@ class UpdateUserRequest(BaseModel):
     role: Optional[RoleType] = None
 
 
-class UserListResponse(BaseModel):
+class UserListResponse(ORMModel):
     id: int
     email: EmailStr
     first_name: str
@@ -32,15 +33,7 @@ class UserListResponse(BaseModel):
     role_id: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
-class PaginatedUsersResponse(BaseModel):
-    total: int
-    page: int
-    page_size: int
-    total_pages: int
+class PaginatedUsersResponse(PaginationMeta):
     users: List[UserListResponse]
 
 
