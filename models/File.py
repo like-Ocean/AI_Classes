@@ -1,8 +1,12 @@
 from datetime import datetime
 from sqlalchemy import String, Integer, BigInteger, TIMESTAMP, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import List
+from typing import List, TYPE_CHECKING
 from core.database import Base
+
+if TYPE_CHECKING:
+    from .MaterialFile import MaterialFile
+    from .HomeworkSubmissionFile import HomeworkSubmissionFile
 
 
 class File(Base):
@@ -20,6 +24,11 @@ class File(Base):
 
     material_files: Mapped[List["MaterialFile"]] = relationship(
         "MaterialFile",
+        back_populates="file",
+        cascade="all, delete-orphan"
+    )
+    homework_submission_files: Mapped[List["HomeworkSubmissionFile"]] = relationship(
+        "HomeworkSubmissionFile",
         back_populates="file",
         cascade="all, delete-orphan"
     )

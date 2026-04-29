@@ -20,3 +20,6 @@ from .QuestionAttempt import QuestionAttempt
 from .TestAttemptFeedback import TestAttemptFeedback
 from .Comment import Comment
 from .CommentReaction import CommentReaction
+from .HomeworkAssignment import HomeworkAssignment
+from .HomeworkSubmission import HomeworkSubmission
+from .HomeworkSubmissionFile import HomeworkSubmissionFile

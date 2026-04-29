@@ -70,5 +70,14 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+    homework_assignments_created: Mapped[List["HomeworkAssignment"]] = relationship(
+        "HomeworkAssignment",
+        foreign_keys="HomeworkAssignment.created_by"
+    )
+    homework_submissions: Mapped[List["HomeworkSubmission"]] = relationship(
+        "HomeworkSubmission",
+        back_populates="student",
+        cascade="all, delete-orphan"
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("NOW()"), nullable=False)

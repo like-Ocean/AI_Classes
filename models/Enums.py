@@ -24,3 +24,21 @@ class ApplicationStatus(str, Enum):
     pending = "pending"
     approved = "approved"
     rejected = "rejected"
+
+
+class HomeworkSubmissionFormat(str, Enum):
+    files = "files"
+    text = "text"
+    video = "video"
+    photo = "photo"
+
+
+class HomeworkSubmissionStatus(str, Enum):
+    pending_review = "pending_review"
+    reviewed = "reviewed"
+    overdue = "overdue"
+
+
+class HomeworkReviewResult(str, Enum):
+    credit = "credit"
+    no_credit = "no_credit"

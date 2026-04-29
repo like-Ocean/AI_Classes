@@ -14,6 +14,7 @@ from schemas.student import (
 )
 from schemas.file import FileResponse, MaterialFileResponse
 from schemas.auth import MessageResponse
+from schemas.teacher_progress import CourseProgressOverviewResponse
 
 teacher_management_router = APIRouter(tags=["Teacher / Управление"])
 
@@ -198,4 +199,21 @@ async def unenroll_student(
 ):
     return await course_service.unenroll_student(
         course_id, user_id, current_teacher, db
+    )
+
+
+@teacher_management_router.get(
+    "/courses/{course_id}/progress",
+    response_model=CourseProgressOverviewResponse,
+    summary="Get course progress overview"
+)
+async def get_course_progress_overview(
+    course_id: int,
+    page: int = Query(1, ge=1, description="Номер страницы"),
+    page_size: int = Query(50, ge=1, le=200, description="Размер страницы"),
+    current_teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db)
+):
+    return await course_service.get_course_progress_overview(
+        course_id, current_teacher, db, page, page_size
     )

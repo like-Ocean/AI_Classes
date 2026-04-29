@@ -6,8 +6,7 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from fastapi import UploadFile, HTTPException, status
-from typing import List
-from models import File, MaterialFile, Material
+from models import File, MaterialFile
 from core.config import settings
 
 
@@ -21,9 +20,9 @@ def get_unique_filename(original_filename: str, file_hash: str):
     return f"{timestamp}_{file_hash[:16]}{ext}"
 
 
-async def validate_file(file: UploadFile):
+async def validate_file(file: UploadFile, allow_any_extension: bool = False):
     ext = Path(file.filename).suffix.lower()
-    if ext not in settings.ALLOWED_EXTENSIONS:
+    if not allow_any_extension and ext not in settings.ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"File extension {ext} is not allowed. Allowed: {', '.join(settings.ALLOWED_EXTENSIONS)}"
@@ -44,8 +43,8 @@ async def validate_file(file: UploadFile):
     await file.seek(0)
 
 
-async def save_file(file: UploadFile, db: AsyncSession) -> File:
-    await validate_file(file)
+async def save_file(file: UploadFile, db: AsyncSession, allow_any_extension: bool = False) -> File:
+    await validate_file(file, allow_any_extension=allow_any_extension)
 
     content = await file.read()
     await file.seek(0)

@@ -1,9 +1,10 @@
 from pydantic import BaseModel
 from datetime import datetime
 from typing import List
+from schemas.base import ORMModel
 
 
-class FileResponse(BaseModel):
+class FileResponse(ORMModel):
     id: int
     filename: str
     original_filename: str
@@ -12,14 +13,8 @@ class FileResponse(BaseModel):
     mime_type: str
     uploaded_at: datetime
 
-    class Config:
-        from_attributes = True
-
-
-class MaterialFileResponse(BaseModel):
+class MaterialFileResponse(ORMModel):
     id: int
     material_id: int
     file: FileResponse
 
-    class Config:
-        from_attributes = True

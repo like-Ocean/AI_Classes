@@ -1,17 +1,19 @@
 from math import ceil
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from models import (
     Course, Material, CourseEditor, User, Module,
     MaterialFile, CourseEnrollment, CourseProgress,
-    LessonProgress
+    LessonProgress, Test, TestAttempt,
+    HomeworkAssignment, HomeworkSubmission
 )
 from helpers.students.formatters import format_progress_data
 from schemas.enums import CourseRoleFilter
 from schemas.course import CourseCreateRequest, CourseUpdateRequest
+from schemas.teacher_progress import CourseProgressOverviewResponse, StudentProgressRow
 
 
 async def check_course_access(
@@ -371,3 +373,151 @@ async def unenroll_student(
     return {
         "message": f"Student {student_name} unenrolled from course"
     }
+
+
+def _build_full_name(user: User) -> str:
+    parts = [user.last_name, user.first_name, user.patronymic]
+    return " ".join(p for p in parts if p)
+
+
+async def get_course_progress_overview(
+    course_id: int,
+    user: User,
+    db: AsyncSession,
+    page: int = 1,
+    page_size: int = 50
+) -> CourseProgressOverviewResponse:
+    await check_course_access(course_id, user, db, require_creator=False)
+
+    total_materials_result = await db.execute(
+        select(func.count(Material.id))
+        .join(Module)
+        .where(Module.course_id == course_id)
+    )
+    total_materials = total_materials_result.scalar() or 0
+
+    total_tests_result = await db.execute(
+        select(func.count(Test.id))
+        .join(Material, Test.material_id == Material.id)
+        .join(Module, Material.module_id == Module.id)
+        .where(Module.course_id == course_id)
+    )
+    total_tests = total_tests_result.scalar() or 0
+
+    total_homework_result = await db.execute(
+        select(func.count(HomeworkAssignment.id))
+        .where(HomeworkAssignment.course_id == course_id)
+    )
+    total_homework = total_homework_result.scalar() or 0
+
+    enrollments_result = await db.execute(
+        select(CourseEnrollment)
+        .options(selectinload(CourseEnrollment.user))
+        .where(CourseEnrollment.course_id == course_id)
+    )
+    enrollments = list(enrollments_result.scalars().all())
+    user_ids = [e.user_id for e in enrollments]
+
+    if not user_ids:
+        total_pages = 0
+        return CourseProgressOverviewResponse(
+            course_id=course_id,
+            total_materials=total_materials,
+            total_tests=total_tests,
+            total_homework=total_homework,
+            total=0,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            students=[],
+            least_active=[]
+        )
+
+    lessons_result = await db.execute(
+        select(LessonProgress.user_id, func.count(LessonProgress.id))
+        .join(Material, LessonProgress.lesson_id == Material.id)
+        .join(Module, Material.module_id == Module.id)
+        .where(
+            and_(
+                Module.course_id == course_id,
+                LessonProgress.user_id.in_(user_ids)
+            )
+        )
+        .group_by(LessonProgress.user_id)
+    )
+    lessons_map = {row[0]: row[1] for row in lessons_result.all()}
+
+    tests_result = await db.execute(
+        select(TestAttempt.user_id, func.count(func.distinct(TestAttempt.test_id)))
+        .join(Test, TestAttempt.test_id == Test.id)
+        .join(Material, Test.material_id == Material.id)
+        .join(Module, Material.module_id == Module.id)
+        .where(
+            and_(
+                Module.course_id == course_id,
+                TestAttempt.user_id.in_(user_ids),
+                TestAttempt.passed.is_(True)
+            )
+        )
+        .group_by(TestAttempt.user_id)
+    )
+    tests_map = {row[0]: row[1] for row in tests_result.all()}
+
+    homework_result = await db.execute(
+        select(HomeworkSubmission.student_id, func.count(HomeworkSubmission.id))
+        .join(HomeworkAssignment, HomeworkSubmission.assignment_id == HomeworkAssignment.id)
+        .where(
+            and_(
+                HomeworkAssignment.course_id == course_id,
+                HomeworkSubmission.student_id.in_(user_ids),
+                HomeworkSubmission.review_result == "credit"
+            )
+        )
+        .group_by(HomeworkSubmission.student_id)
+    )
+    homework_map = {row[0]: row[1] for row in homework_result.all()}
+
+    students_rows: list[StudentProgressRow] = []
+    for enrollment in enrollments:
+        student = enrollment.user
+        completed_lessons = lessons_map.get(student.id, 0)
+        completed_tests = tests_map.get(student.id, 0)
+        completed_homework = homework_map.get(student.id, 0)
+        progress_percentage = (
+            (completed_lessons / total_materials * 100)
+            if total_materials > 0 else 0.0
+        )
+        students_rows.append(StudentProgressRow(
+            user_id=student.id,
+            full_name=_build_full_name(student),
+            group_name=student.group_name,
+            completed_lessons=completed_lessons,
+            completed_tests=completed_tests,
+            completed_homework=completed_homework,
+            total_tests=total_tests,
+            remaining_tests=max(total_tests - completed_tests, 0),
+            total_homework=total_homework,
+            remaining_homework=max(total_homework - completed_homework, 0),
+            progress_percentage=round(progress_percentage, 2),
+        ))
+
+    least_active = sorted(students_rows, key=lambda s: s.progress_percentage)[:5]
+
+    total = len(students_rows)
+    total_pages = ceil(total / page_size) if total > 0 else 0
+    start = (page - 1) * page_size
+    end = start + page_size
+    paginated_students = students_rows[start:end]
+
+    return CourseProgressOverviewResponse(
+        course_id=course_id,
+        total_materials=total_materials,
+        total_tests=total_tests,
+        total_homework=total_homework,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
+        students=paginated_students,
+        least_active=least_active
+    )
