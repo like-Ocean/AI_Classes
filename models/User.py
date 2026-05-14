@@ -77,6 +77,7 @@ class User(Base):
     homework_submissions: Mapped[List["HomeworkSubmission"]] = relationship(
         "HomeworkSubmission",
         back_populates="student",
+        foreign_keys="HomeworkSubmission.student_id",
         cascade="all, delete-orphan"
     )
 
