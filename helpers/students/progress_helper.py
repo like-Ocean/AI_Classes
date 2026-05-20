@@ -66,6 +66,8 @@ async def get_course_with_progress_data(course: Course, user_id: int, db: AsyncS
 
     modules_data = []
     for module in course.modules:
+        module.materials.sort(key=lambda m: m.position)
+        materials_data = []
         completed_in_module = sum(
             1 for material in module.materials if progress_map.get(material.id)
         )
@@ -75,6 +77,21 @@ async def get_course_with_progress_data(course: Course, user_id: int, db: AsyncS
             if total_in_module > 0 else 0
         )
 
+        for material in module.materials:
+            progress = progress_map.get(material.id)
+            is_completed = progress is not None
+            materials_data.append({
+                "id": material.id,
+                "title": material.title,
+                "type": material.type.value,
+                "position": material.position,
+                "is_completed": is_completed,
+                "completed_at": progress.completed_at if progress else None,
+                "is_locked": False,
+                "lock_reason": None,
+                "has_tests": len(material.tests) > 0
+            })
+
         module_dict = {
             "id": module.id,
             "title": module.title,
@@ -82,7 +99,8 @@ async def get_course_with_progress_data(course: Course, user_id: int, db: AsyncS
             "course_id": module.course_id,
             "progress_percentage": round(module_progress, 2),
             "completed_materials": completed_in_module,
-            "total_materials": total_in_module
+            "total_materials": total_in_module,
+            "materials": materials_data
         }
         modules_data.append(module_dict)
 

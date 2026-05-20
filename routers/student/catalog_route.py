@@ -8,10 +8,10 @@ from models import User
 from models.Enums import ApplicationStatus
 from schemas.student import (
     CourseApplicationResponse, PaginatedCoursesResponse,
-    MyCoursesResponse, LessonProgressResponse,
-    ModuleWithProgressResponse,
+    MyCoursesResponse, MyCoursesProgressResponse,
+    LessonProgressResponse, ModuleWithProgressResponse,
     CourseCardResponse, EnrolledCourseDetailResponse,
-    MaterialDetailForStudent, PaginatedApplicationsResponse,
+    MaterialDetailForStudent, PaginatedApplicationsResponse
 )
 from schemas.auth import MessageResponse
 
@@ -24,11 +24,11 @@ student_catalog_router = APIRouter(tags=["Student / Каталог"])
     summary="Get available courses catalog"
 )
 async def get_courses_catalog(
-        search: Optional[str] = Query(None, description="Поиск по названию или описанию"),
-        page: int = Query(1, ge=1),
-        page_size: int = Query(20, ge=1, le=100),
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    search: Optional[str] = Query(None, description="Поиск по названию или описанию"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     return await student_service.get_available_courses(
         user=current_user, db=db, search=search, page=page, page_size=page_size
@@ -41,9 +41,9 @@ async def get_courses_catalog(
     summary="Get course public info"
 )
 async def get_course_public_info(
-        course_id: int,
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    course_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     return await student_service.get_course_public_detail(course_id, current_user, db)
 
@@ -55,9 +55,9 @@ async def get_course_public_info(
     summary="Apply for course"
 )
 async def apply_for_course(
-        course_id: int,
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    course_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     return await application_service.apply_for_course(course_id, current_user, db)
 
@@ -68,11 +68,11 @@ async def apply_for_course(
     summary="Get my applications"
 )
 async def get_my_applications(
-        status: Optional[ApplicationStatus] = Query(None, description="Фильтр по статусу: pending, approved, rejected"),
-        page: int = Query(1, ge=1, description="Номер страницы"),
-        page_size: int = Query(20, ge=1, le=100, description="Размер страницы"),
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    status: Optional[ApplicationStatus] = Query(None, description="Фильтр по статусу: pending, approved, rejected"),
+    page: int = Query(1, ge=1, description="Номер страницы"),
+    page_size: int = Query(20, ge=1, le=100, description="Размер страницы"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     return await application_service.get_my_applications(
         current_user, db, status, page, page_size
@@ -85,9 +85,9 @@ async def get_my_applications(
     summary="Cancel application"
 )
 async def cancel_application(
-        application_id: int,
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    application_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     await application_service.cancel_application(application_id, current_user, db)
     return MessageResponse(message="Application cancelled successfully")
@@ -95,12 +95,36 @@ async def cancel_application(
 
 @student_catalog_router.get(
     "/my-courses",
-    response_model=MyCoursesResponse,
-    summary="Get my enrolled courses"
+    response_model=MyCoursesProgressResponse,
+    summary="Get my enrolled courses progress"
 )
 async def get_my_courses(
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    search: Optional[str] = Query(None, description="Поиск по названию или описанию"),
+    sort_by: str = Query("created_at", description="Сортировка: created_at, progress, title"),
+    order: str = Query("desc", description="Порядок сортировки: asc или desc"),
+    page: int = Query(1, ge=1, description="Номер страницы"),
+    page_size: int = Query(20, ge=1, le=100, description="Размер страницы"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    return await student_service.get_my_courses_progress(
+        current_user, db,
+        search=search,
+        sort_by=sort_by,
+        order=order,
+        page=page,
+        page_size=page_size
+    )
+
+
+@student_catalog_router.get(
+    "/my-courses-legacy",
+    response_model=MyCoursesResponse,
+    summary="Get my enrolled courses (legacy)"
+)
+async def get_my_courses_legacy(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     return await student_service.get_my_courses(current_user, db)
 
@@ -111,9 +135,9 @@ async def get_my_courses(
     summary="Get enrolled course details"
 )
 async def get_enrolled_course(
-        course_id: int,
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    course_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     return await student_service.get_enrolled_course_detail(course_id, current_user, db)
 
@@ -124,8 +148,7 @@ async def get_enrolled_course(
     summary="Get module with progress"
 )
 async def get_module(
-    course_id: int,
-    module_id: int,
+    course_id: int, module_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -138,9 +161,7 @@ async def get_module(
     summary="Mark material as completed"
 )
 async def complete_material(
-    course_id: int,
-    module_id: int,
-    material_id: int,
+    course_id: int, module_id: int, material_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -155,11 +176,9 @@ async def complete_material(
     summary="Get material detail (with access check)"
 )
 async def get_material_detail(
-        course_id: int,
-        module_id: int,
-        material_id: int,
-        current_user: User = Depends(get_current_user),
-        db: AsyncSession = Depends(get_db)
+    course_id: int, module_id: int, material_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     return await student_service.get_material_detail(
         course_id, module_id, material_id, current_user, db

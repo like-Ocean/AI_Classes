@@ -140,13 +140,20 @@ async def get_course_detail(course_id: int, user: User, db: AsyncSession):
     result = await db.execute(
         select(Course)
         .options(
-            selectinload(Course.modules),
+            selectinload(Course.modules)
+            .selectinload(Module.materials)
+            .selectinload(Material.material_files)
+            .selectinload(MaterialFile.file),
             selectinload(Course.creator)
         )
         .where(Course.id == course_id)
     )
     course = result.scalar_one()
     course.modules.sort(key=lambda m: m.position)
+    for module in course.modules:
+        module.materials.sort(key=lambda mat: mat.position)
+        for material in module.materials:
+            material.files = material.material_files
 
     return course
 
@@ -316,10 +323,7 @@ async def get_enrolled_students(
     }
 
 
-async def unenroll_student(
-    course_id: int, user_id: int,
-    user: User, db: AsyncSession
-):
+async def unenroll_student(course_id: int, user_id: int, user: User, db: AsyncSession):
     await check_course_access(course_id, user, db, require_creator=True)
     result = await db.execute(
         select(CourseEnrollment)
@@ -381,11 +385,8 @@ def _build_full_name(user: User) -> str:
 
 
 async def get_course_progress_overview(
-    course_id: int,
-    user: User,
-    db: AsyncSession,
-    page: int = 1,
-    page_size: int = 50
+    course_id: int, user: User, db: AsyncSession,
+    page: int = 1, page_size: int = 50
 ) -> CourseProgressOverviewResponse:
     await check_course_access(course_id, user, db, require_creator=False)
 

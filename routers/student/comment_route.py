@@ -7,6 +7,7 @@ from schemas.comments import (
     CreateCommentRequest, CommentResponse, PaginatedCommentsResponse,
     CommentReactionRequest, CommentReactionSummaryResponse,
 )
+from schemas.auth import MessageResponse
 from service import student_comment_service
 
 
@@ -101,4 +102,17 @@ async def react_to_comment(
     return await student_comment_service.react_to_comment(
         comment_id, data, 
         current_user, db
+    )
+
+
+@student_comment_router.delete(
+    "/comments/{comment_id}", response_model=MessageResponse,
+    summary="Delete comment (teacher/admin)"
+)
+async def delete_comment(
+    comment_id: int, current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    return await student_comment_service.delete_comment(
+        comment_id, current_user, db
     )

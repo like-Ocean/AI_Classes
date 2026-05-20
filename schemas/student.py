@@ -85,6 +85,25 @@ class MyCoursesResponse(BaseModel):
     courses: List[EnrolledCourseResponse]
 
 
+class StudentCourseProgressItem(BaseModel):
+    id: int
+    title: str
+    description: Optional[str]
+    img_url: Optional[str]
+    created_at: datetime
+    completed_lessons: int = 0
+    completed_tests: int = 0
+    completed_homework: int = 0
+    total_lessons: int = 0
+    total_tests: int = 0
+    total_homework: int = 0
+    progress_percentage: float = 0.0
+
+
+class MyCoursesProgressResponse(PaginationMeta):
+    courses: List[StudentCourseProgressItem]
+
+
 # MODULE WITH PROGRESS (МОДУЛЬ С ПРОГРЕССОМ)
 
 class MaterialProgressInfo(BaseModel):

@@ -110,12 +110,12 @@ class MaterialResponse(ORMModel):
     files: List[MaterialFileInfo] = []
 
 
-class CourseWithModulesResponse(CourseResponse):
-    modules: List[ModuleResponse] = []
-
-
 class ModuleWithMaterialsResponse(ModuleResponse):
     materials: List[MaterialResponse] = []
+
+
+class CourseWithModulesResponse(CourseResponse):
+    modules: List[ModuleWithMaterialsResponse] = []
 
 
 class AddEditorRequest(BaseModel):

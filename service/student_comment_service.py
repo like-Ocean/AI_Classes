@@ -8,6 +8,7 @@ from helpers.students.comment_helper import (
     normalize_comment_content, validate_material_context,
     validate_test_context, build_reaction_maps,
     serialize_comment, get_comment_response, require_comment_access,
+    is_teacher_or_admin,
 )
 from schemas.comments import (
     CreateCommentRequest, CommentResponse,
@@ -202,3 +203,25 @@ async def react_to_comment(
         dislikes_count=dislikes_count,
         my_reaction=my_reaction,
     )
+
+
+async def delete_comment(comment_id: int, user: User, db: AsyncSession) -> dict:
+    comment_result = await db.execute(select(Comment).where(Comment.id == comment_id))
+    comment = comment_result.scalar_one_or_none()
+    if not comment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found"
+        )
+
+    if not await is_teacher_or_admin(user, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only teachers or admins can delete comments"
+        )
+
+    await require_comment_access(comment, user, db)
+
+    await db.delete(comment)
+    await db.commit()
+
+    return {"message": "Comment deleted successfully"}

@@ -6,7 +6,8 @@ from typing import Optional
 from math import ceil
 from models import (
     Course, Module, Material, User, CourseApplication,
-    CourseEnrollment, LessonProgress, MaterialFile
+    CourseEnrollment, LessonProgress, MaterialFile,
+    Test, TestAttempt, HomeworkAssignment, HomeworkSubmission
 )
 from helpers.students.access_helper import (
     check_course_enrollment, require_course_enrollment,
@@ -157,6 +158,157 @@ async def get_my_courses(user: User, db: AsyncSession):
             courses_data.append(course_card)
 
     return {"courses": courses_data}
+
+
+async def get_my_courses_progress(
+    user: User, db: AsyncSession,
+    search: Optional[str] = None,
+    sort_by: str = "created_at",
+    order: str = "desc", page: int = 1,
+    page_size: int = 20
+):
+    enrollments = await load_user_enrollments(user.id, db)
+    if search:
+        search_value = search.lower()
+        enrollments = [
+            e for e in enrollments
+            if search_value in (e.course.title or "").lower()
+            or search_value in (e.course.description or "").lower()
+        ]
+
+    if not enrollments:
+        return {
+            "total": 0,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": 0,
+            "courses": []
+        }
+
+    course_ids = [e.course_id for e in enrollments]
+
+    total_lessons_result = await db.execute(
+        select(Module.course_id, func.count(Material.id))
+        .join(Material, Material.module_id == Module.id)
+        .where(Module.course_id.in_(course_ids))
+        .group_by(Module.course_id)
+    )
+    total_lessons_map = {row[0]: row[1] for row in total_lessons_result.all()}
+
+    total_tests_result = await db.execute(
+        select(Module.course_id, func.count(Test.id))
+        .join(Material, Material.module_id == Module.id)
+        .join(Test, Test.material_id == Material.id)
+        .where(Module.course_id.in_(course_ids))
+        .group_by(Module.course_id)
+    )
+    total_tests_map = {row[0]: row[1] for row in total_tests_result.all()}
+
+    total_homework_result = await db.execute(
+        select(HomeworkAssignment.course_id, func.count(HomeworkAssignment.id))
+        .where(HomeworkAssignment.course_id.in_(course_ids))
+        .group_by(HomeworkAssignment.course_id)
+    )
+    total_homework_map = {row[0]: row[1] for row in total_homework_result.all()}
+
+    completed_lessons_result = await db.execute(
+        select(Module.course_id, func.count(LessonProgress.id))
+        .join(Material, LessonProgress.lesson_id == Material.id)
+        .join(Module, Material.module_id == Module.id)
+        .where(
+            and_(
+                Module.course_id.in_(course_ids),
+                LessonProgress.user_id == user.id
+            )
+        )
+        .group_by(Module.course_id)
+    )
+    completed_lessons_map = {row[0]: row[1] for row in completed_lessons_result.all()}
+
+    completed_tests_result = await db.execute(
+        select(Module.course_id, func.count(func.distinct(TestAttempt.test_id)))
+        .join(Test, TestAttempt.test_id == Test.id)
+        .join(Material, Test.material_id == Material.id)
+        .join(Module, Material.module_id == Module.id)
+        .where(
+            and_(
+                Module.course_id.in_(course_ids),
+                TestAttempt.user_id == user.id,
+                TestAttempt.passed.is_(True)
+            )
+        )
+        .group_by(Module.course_id)
+    )
+    completed_tests_map = {row[0]: row[1] for row in completed_tests_result.all()}
+
+    completed_homework_result = await db.execute(
+        select(HomeworkAssignment.course_id, func.count(HomeworkSubmission.id))
+        .join(HomeworkSubmission, HomeworkSubmission.assignment_id == HomeworkAssignment.id)
+        .where(
+            and_(
+                HomeworkAssignment.course_id.in_(course_ids),
+                HomeworkSubmission.student_id == user.id,
+                HomeworkSubmission.review_result == "credit"
+            )
+        )
+        .group_by(HomeworkAssignment.course_id)
+    )
+    completed_homework_map = {row[0]: row[1] for row in completed_homework_result.all()}
+
+    courses_data = []
+    for enrollment in enrollments:
+        course = enrollment.course
+        total_lessons = total_lessons_map.get(course.id, 0)
+        total_tests = total_tests_map.get(course.id, 0)
+        total_homework = total_homework_map.get(course.id, 0)
+
+        completed_lessons = completed_lessons_map.get(course.id, 0)
+        completed_tests = completed_tests_map.get(course.id, 0)
+        completed_homework = completed_homework_map.get(course.id, 0)
+
+        total_items = total_lessons + total_tests + total_homework
+        completed_items = completed_lessons + completed_tests + completed_homework
+        progress_percentage = (
+            (completed_items / total_items * 100) if total_items > 0 else 0.0
+        )
+
+        courses_data.append({
+            "id": course.id,
+            "title": course.title,
+            "description": course.description,
+            "img_url": course.img_url,
+            "created_at": course.created_at,
+            "completed_lessons": completed_lessons,
+            "completed_tests": completed_tests,
+            "completed_homework": completed_homework,
+            "total_lessons": total_lessons,
+            "total_tests": total_tests,
+            "total_homework": total_homework,
+            "progress_percentage": round(progress_percentage, 2)
+        })
+
+    sort_key_map = {
+        "created_at": lambda c: c["created_at"],
+        "progress": lambda c: c["progress_percentage"],
+        "title": lambda c: (c["title"] or "").lower()
+    }
+    key_func = sort_key_map.get(sort_by, sort_key_map["created_at"])
+    reverse = order.lower() != "asc"
+    courses_data.sort(key=key_func, reverse=reverse)
+
+    total = len(courses_data)
+    total_pages = ceil(total / page_size) if total > 0 else 0
+    start = (page - 1) * page_size
+    end = start + page_size
+    paginated_courses = courses_data[start:end]
+
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+        "courses": paginated_courses
+    }
 
 
 async def get_enrolled_course_detail(course_id: int, user: User, db: AsyncSession):

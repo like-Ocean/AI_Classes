@@ -32,7 +32,9 @@ async def load_course_with_modules(course_id: int, db: AsyncSession):
         select(Course)
         .options(
             selectinload(Course.creator),
-            selectinload(Course.modules).selectinload(Module.materials)
+            selectinload(Course.modules)
+            .selectinload(Module.materials)
+            .selectinload(Material.tests)
         )
         .where(Course.id == course_id)
     )
