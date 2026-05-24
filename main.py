@@ -10,7 +10,6 @@ from core.config import settings
 from core.init_db import init_database
 from routers import routes
 
-
 load_dotenv()
 
 
@@ -39,12 +38,12 @@ app = FastAPI(
     title="Education Reviews Platform",
     version="1.0.0",
     lifespan=lifespan,
-    debug=settings.DEBUG
+    debug=settings.DEBUG,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5000"],
+    allow_origins=["http://localhost:3000", "verybaddomain.site"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -63,5 +62,5 @@ if __name__ == "__main__":
         host=settings.APP_HOST,
         port=settings.APP_PORT,
         reload=settings.APP_RELOAD,
-        log_level=settings.APP_LOG_LEVEL.lower()
+        log_level=settings.APP_LOG_LEVEL.lower(),
     )
