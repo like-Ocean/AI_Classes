@@ -92,8 +92,6 @@ async def load_module_with_materials(course_id: int, module_id: int, db: AsyncSe
         )
         .where(and_(Module.id == module_id, Module.course_id == course_id))
     )
-        .where(and_(Module.id == module_id, Module.course_id == course_id))
-    )
     module = result.scalar_one_or_none()
     if not module:
         raise HTTPException(
