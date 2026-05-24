@@ -18,16 +18,19 @@ class HomeworkAssignment(Base):
     material_id: Mapped[int] = mapped_column(
         ForeignKey("materials.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    material: Mapped["Material"] = relationship(
+        "Material", back_populates="homework_assignments"
+    )
     created_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
     description: Mapped[str] = mapped_column(Text, nullable=False)
     allowed_formats: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     deadline: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=text("NOW()"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=text("NOW()"), nullable=False
+    )
 
     submissions: Mapped[List["HomeworkSubmission"]] = relationship(
-        "HomeworkSubmission",
-        back_populates="assignment",
-        cascade="all, delete-orphan"
+        "HomeworkSubmission", back_populates="assignment", cascade="all, delete-orphan"
     )

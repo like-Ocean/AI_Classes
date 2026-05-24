@@ -10,27 +10,30 @@ class Material(Base):
     __tablename__ = "materials"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    module_id: Mapped[int] = mapped_column(ForeignKey("modules.id", ondelete="CASCADE"), nullable=False, index=True)
-    type: Mapped[MaterialType] = mapped_column(SAEnum(MaterialType, name="material_type"), nullable=False)
+    module_id: Mapped[int] = mapped_column(
+        ForeignKey("modules.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    type: Mapped[MaterialType] = mapped_column(
+        SAEnum(MaterialType, name="material_type"), nullable=False
+    )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
-    content_url: Mapped[Optional[str]] = mapped_column(String(500)) # тоже лишнее поле получается
+    content_url: Mapped[Optional[str]] = mapped_column(
+        String(500)
+    )  # тоже лишнее поле получается
     text_content: Mapped[Optional[str]] = mapped_column(Text)
     transcript: Mapped[Optional[str]] = mapped_column(Text)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
 
     module: Mapped["Module"] = relationship("Module", back_populates="materials")
     tests: Mapped[List["Test"]] = relationship(
-        "Test",
-        back_populates="material",
-        cascade="all, delete-orphan"
+        "Test", back_populates="material", cascade="all, delete-orphan"
     )
     material_files: Mapped[List["MaterialFile"]] = relationship(
-        "MaterialFile",
-        back_populates="material",
-        cascade="all, delete-orphan"
+        "MaterialFile", back_populates="material", cascade="all, delete-orphan"
     )
     comments: Mapped[List["Comment"]] = relationship(
-        "Comment",
-        back_populates="material",
-        cascade="all, delete-orphan"
+        "Comment", back_populates="material", cascade="all, delete-orphan"
+    )
+    homework_assignments: Mapped[List["HomeworkAssignment"]] = relationship(
+        "HomeworkAssignment", back_populates="material", cascade="all, delete-orphan"
     )
