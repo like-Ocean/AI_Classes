@@ -4,10 +4,7 @@ from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from models import Course
 from typing import Dict, Set
-from models import (
-    LessonProgress, TestAttempt, Material,
-    Module, MaterialFile
-)
+from models import LessonProgress, TestAttempt, Material, Module, MaterialFile
 
 
 async def load_course_with_creator(course_id: int, db: AsyncSession):
@@ -20,8 +17,7 @@ async def load_course_with_creator(course_id: int, db: AsyncSession):
 
     if not course:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Course not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Course not found"
         )
 
     return course
@@ -35,6 +31,7 @@ async def load_course_with_modules(course_id: int, db: AsyncSession):
             selectinload(Course.modules)
             .selectinload(Module.materials)
             .selectinload(Material.tests)
+            .selectinload(Material.homework_assignments),
         )
         .where(Course.id == course_id)
     )
@@ -42,8 +39,7 @@ async def load_course_with_modules(course_id: int, db: AsyncSession):
 
     if not course:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Course not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Course not found"
         )
 
     course.modules.sort(key=lambda m: m.position)
@@ -51,8 +47,7 @@ async def load_course_with_modules(course_id: int, db: AsyncSession):
 
 
 async def get_materials_progress(
-        user_id: int, material_ids: list[int],
-        db: AsyncSession
+    user_id: int, material_ids: list[int], db: AsyncSession
 ) -> Dict[int, LessonProgress]:
     if not material_ids:
         return {}
@@ -60,14 +55,16 @@ async def get_materials_progress(
         select(LessonProgress).where(
             and_(
                 LessonProgress.user_id == user_id,
-                LessonProgress.lesson_id.in_(material_ids)
+                LessonProgress.lesson_id.in_(material_ids),
             )
         )
     )
     return {p.lesson_id: p for p in result.scalars().all()}
 
 
-async def get_passed_tests(user_id: int, test_ids: list[int], db: AsyncSession) -> Set[int]:
+async def get_passed_tests(
+    user_id: int, test_ids: list[int], db: AsyncSession
+) -> Set[int]:
     if not test_ids:
         return set()
     result = await db.execute(
@@ -75,7 +72,7 @@ async def get_passed_tests(user_id: int, test_ids: list[int], db: AsyncSession) 
             and_(
                 TestAttempt.test_id.in_(test_ids),
                 TestAttempt.user_id == user_id,
-                TestAttempt.passed == True
+                TestAttempt.passed == True,
             )
         )
     )
@@ -91,14 +88,17 @@ async def load_module_with_materials(course_id: int, module_id: int, db: AsyncSe
             .selectinload(MaterialFile.file),
             selectinload(Module.materials)
             .selectinload(Material.tests)
+            .selectinload(Material.homework_assignments),
         )
+        .where(and_(Module.id == module_id, Module.course_id == course_id))
+    )
         .where(and_(Module.id == module_id, Module.course_id == course_id))
     )
     module = result.scalar_one_or_none()
     if not module:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Module not found in this course"
+            detail="Module not found in this course",
         )
     module.materials.sort(key=lambda m: m.position)
     return module

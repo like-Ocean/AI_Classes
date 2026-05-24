@@ -173,6 +173,7 @@ async def get_material_detail_for_teacher(
             selectinload(Material.module),
             selectinload(Material.material_files).selectinload(MaterialFile.file),
             selectinload(Material.tests),
+            selectinload(Material.homework_assignments),
         )
         .where(and_(Material.id == material_id, Material.module_id == module_id))
     )
