@@ -30,7 +30,9 @@ async def load_course_with_modules(course_id: int, db: AsyncSession):
             selectinload(Course.creator),
             selectinload(Course.modules)
             .selectinload(Module.materials)
-            .selectinload(Material.tests)
+            .selectinload(Material.tests),
+            selectinload(Course.modules)
+            .selectinload(Module.materials)
             .selectinload(Material.homework_assignments),
         )
         .where(Course.id == course_id)
@@ -86,9 +88,8 @@ async def load_module_with_materials(course_id: int, module_id: int, db: AsyncSe
             selectinload(Module.materials)
             .selectinload(Material.material_files)
             .selectinload(MaterialFile.file),
-            selectinload(Module.materials)
-            .selectinload(Material.tests)
-            .selectinload(Material.homework_assignments),
+            selectinload(Module.materials).selectinload(Material.tests),
+            selectinload(Module.materials).selectinload(Material.homework_assignments),
         )
         .where(and_(Module.id == module_id, Module.course_id == course_id))
     )
