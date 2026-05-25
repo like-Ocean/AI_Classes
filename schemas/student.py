@@ -7,8 +7,8 @@ from models.Enums import ApplicationStatus, MaterialType
 from schemas.common import TestBriefInfo
 from schemas.base import ORMModel, PaginationMeta
 
-
 # COURSE APPLICATION (ЗАЯВКИ)
+
 
 class CourseApplicationCreate(BaseModel):
     pass
@@ -22,6 +22,7 @@ class CourseApplicationResponse(ORMModel):
     applied_at: datetime
     reviewed_at: Optional[datetime]
     reviewer: Optional[UserResponse] = None
+
 
 class PaginatedApplicationsResponse(PaginationMeta):
     applications: List[CourseApplicationResponse]
@@ -39,6 +40,7 @@ class CourseApplicationDetailResponse(ORMModel):
 
 # COURSE CATALOG (КАТАЛОГ КУРСОВ)
 
+
 class CourseCardResponse(ORMModel):
     id: int
     title: str
@@ -49,16 +51,19 @@ class CourseCardResponse(ORMModel):
     is_enrolled: bool = False
     application_status: Optional[ApplicationStatus] = None
 
+
 class PaginatedCoursesResponse(PaginationMeta):
     courses: List[CourseCardResponse]
 
 
 # STUDENT PROGRESS (ПРОГРЕСС)
 
+
 class LessonProgressResponse(ORMModel):
     id: int
     lesson_id: int
     completed_at: datetime
+
 
 class CourseProgressResponse(ORMModel):
     id: int
@@ -71,6 +76,7 @@ class CourseProgressResponse(ORMModel):
 
 
 # ENROLLED COURSE (МОИ КУРСЫ)
+
 
 class EnrolledCourseResponse(ORMModel):
     id: int
@@ -106,6 +112,7 @@ class MyCoursesProgressResponse(PaginationMeta):
 
 # MODULE WITH PROGRESS (МОДУЛЬ С ПРОГРЕССОМ)
 
+
 class MaterialProgressInfo(BaseModel):
     id: int
     title: str
@@ -114,16 +121,12 @@ class MaterialProgressInfo(BaseModel):
     is_completed: bool
     completed_at: Optional[datetime] = None
     is_locked: bool = Field(
-        default=False,
-        description="Заблокирован ли доступ к материалу"
+        default=False, description="Заблокирован ли доступ к материалу"
     )
-    lock_reason: Optional[str] = Field(
-        None,
-        description="Причина блокировки"
-    )
-    has_tests: bool = Field(
-        default=False,
-        description="Есть ли тесты у материала"
+    lock_reason: Optional[str] = Field(None, description="Причина блокировки")
+    has_tests: bool = Field(default=False, description="Есть ли тесты у материала")
+    has_homework: bool = Field(
+        default=False, description="Есть ли домашняя работа у материала"
     )
 
 
@@ -168,6 +171,7 @@ class MaterialDetailForStudent(ORMModel):
     position: int
     files: List[MaterialFileInfo] = []
     has_tests: bool = False
+    has_homework: bool = False
     tests: List[TestBriefInfo] = []
     is_completed: bool = False
     completed_at: Optional[datetime] = None
@@ -190,9 +194,9 @@ class PaginatedPublicCoursesResponse(PaginatedCoursesResponse):
 class EnrolledStudentResponse(ORMModel):
     user: UserResponse = Field(..., description="Студент")
     progress: Optional[CourseProgressResponse] = Field(
-        None,
-        description="Прогресс студента (если есть)"
+        None, description="Прогресс студента (если есть)"
     )
+
 
 class EnrolledStudentsListResponse(PaginationMeta):
     page: int = 1

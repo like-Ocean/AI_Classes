@@ -5,7 +5,9 @@ from models import Material, Module, LessonProgress, CourseProgress, Course
 from .course_loader import get_materials_progress
 
 
-async def calculate_course_progress(user_id: int, course_id: int, db: AsyncSession) -> tuple[int, int]:
+async def calculate_course_progress(
+    user_id: int, course_id: int, db: AsyncSession
+) -> tuple[int, int]:
     total_result = await db.execute(
         select(func.count(Material.id))
         .join(Module)
@@ -17,12 +19,7 @@ async def calculate_course_progress(user_id: int, course_id: int, db: AsyncSessi
         select(func.count(LessonProgress.id))
         .join(Material, LessonProgress.lesson_id == Material.id)
         .join(Module, Material.module_id == Module.id)
-        .where(
-            and_(
-                Module.course_id == course_id,
-                LessonProgress.user_id == user_id
-            )
-        )
+        .where(and_(Module.course_id == course_id, LessonProgress.user_id == user_id))
     )
     completed_materials = completed_result.scalar()
 
@@ -34,8 +31,7 @@ async def update_course_progress_record(user_id: int, course_id: int, db: AsyncS
     result = await db.execute(
         select(CourseProgress).where(
             and_(
-                CourseProgress.user_id == user_id,
-                CourseProgress.course_id == course_id
+                CourseProgress.user_id == user_id, CourseProgress.course_id == course_id
             )
         )
     )
@@ -50,7 +46,7 @@ async def update_course_progress_record(user_id: int, course_id: int, db: AsyncS
             user_id=user_id,
             course_id=course_id,
             completed_items=completed,
-            total_items=total
+            total_items=total,
         )
         db.add(progress)
 
@@ -73,24 +69,26 @@ async def get_course_with_progress_data(course: Course, user_id: int, db: AsyncS
         )
         total_in_module = len(module.materials)
         module_progress = (
-            (completed_in_module / total_in_module * 100)
-            if total_in_module > 0 else 0
+            (completed_in_module / total_in_module * 100) if total_in_module > 0 else 0
         )
 
         for material in module.materials:
             progress = progress_map.get(material.id)
             is_completed = progress is not None
-            materials_data.append({
-                "id": material.id,
-                "title": material.title,
-                "type": material.type.value,
-                "position": material.position,
-                "is_completed": is_completed,
-                "completed_at": progress.completed_at if progress else None,
-                "is_locked": False,
-                "lock_reason": None,
-                "has_tests": len(material.tests) > 0
-            })
+            materials_data.append(
+                {
+                    "id": material.id,
+                    "title": material.title,
+                    "type": material.type.value,
+                    "position": material.position,
+                    "is_completed": is_completed,
+                    "completed_at": progress.completed_at if progress else None,
+                    "is_locked": False,
+                    "lock_reason": None,
+                    "has_tests": len(material.tests) > 0,
+                    "has_homework": len(material.homework_assignments) > 0,
+                }
+            )
 
         module_dict = {
             "id": module.id,
@@ -100,7 +98,7 @@ async def get_course_with_progress_data(course: Course, user_id: int, db: AsyncS
             "progress_percentage": round(module_progress, 2),
             "completed_materials": completed_in_module,
             "total_materials": total_in_module,
-            "materials": materials_data
+            "materials": materials_data,
         }
         modules_data.append(module_dict)
 
@@ -114,5 +112,5 @@ async def get_course_with_progress_data(course: Course, user_id: int, db: AsyncS
         "modules": modules_data,
         "overall_progress": round(overall_progress, 2),
         "completed_materials": completed,
-        "total_materials": total
+        "total_materials": total,
     }

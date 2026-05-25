@@ -5,40 +5,54 @@ from fastapi import HTTPException, status
 from typing import Optional
 from math import ceil
 from models import (
-    Course, Module, Material, User, CourseApplication,
-    CourseEnrollment, LessonProgress, MaterialFile,
-    Test, TestAttempt, HomeworkAssignment, HomeworkSubmission
+    Course,
+    Module,
+    Material,
+    User,
+    CourseApplication,
+    CourseEnrollment,
+    LessonProgress,
+    MaterialFile,
+    Test,
+    TestAttempt,
+    HomeworkAssignment,
+    HomeworkSubmission,
 )
 from helpers.students.access_helper import (
-    check_course_enrollment, require_course_enrollment,
-    check_material_access
+    check_course_enrollment,
+    require_course_enrollment,
+    check_material_access,
 )
 from helpers.students.course_loader import (
-    load_course_with_modules, get_materials_progress,
-    load_module_with_materials
+    load_course_with_modules,
+    get_materials_progress,
+    load_module_with_materials,
 )
 from helpers.students.my_courses_helper import (
-    load_user_enrollments, load_pending_applications,
-    get_course_progress
+    load_user_enrollments,
+    load_pending_applications,
+    get_course_progress,
 )
 from helpers.students.progress_helper import (
-    update_course_progress_record, get_course_with_progress_data
+    update_course_progress_record,
+    get_course_with_progress_data,
 )
 from helpers.students.formatters import format_progress_data, format_course_card
 
 
 # COURSE CATALOG
 async def get_available_courses(
-    user: User, db: AsyncSession,
+    user: User,
+    db: AsyncSession,
     search: Optional[str] = None,
-    page: int = 1, page_size: int = 20
+    page: int = 1,
+    page_size: int = 20,
 ):
     query = select(Course).options(selectinload(Course.creator))
 
     if search:
         search_filter = or_(
-            Course.title.ilike(f"%{search}%"),
-            Course.description.ilike(f"%{search}%")
+            Course.title.ilike(f"%{search}%"), Course.description.ilike(f"%{search}%")
         )
         query = query.where(search_filter)
 
@@ -60,7 +74,7 @@ async def get_available_courses(
         select(CourseEnrollment).where(
             and_(
                 CourseEnrollment.user_id == user.id,
-                CourseEnrollment.course_id.in_(course_ids)
+                CourseEnrollment.course_id.in_(course_ids),
             )
         )
     )
@@ -71,7 +85,7 @@ async def get_available_courses(
         .where(
             and_(
                 CourseApplication.user_id == user.id,
-                CourseApplication.course_id.in_(course_ids)
+                CourseApplication.course_id.in_(course_ids),
             )
         )
         .order_by(CourseApplication.applied_at.desc())
@@ -91,7 +105,9 @@ async def get_available_courses(
             "creator": course.creator,
             "created_at": course.created_at,
             "is_enrolled": course.id in enrollments,
-            "application_status": applications[course.id].status if course.id in applications else None
+            "application_status": (
+                applications[course.id].status if course.id in applications else None
+            ),
         }
         courses_data.append(course_dict)
 
@@ -100,7 +116,7 @@ async def get_available_courses(
         "page": page,
         "page_size": page_size,
         "total_pages": total_pages,
-        "courses": courses_data
+        "courses": courses_data,
     }
 
 
@@ -112,7 +128,7 @@ async def get_course_public_detail(course_id: int, user: User, db: AsyncSession)
         .where(
             and_(
                 CourseApplication.user_id == user.id,
-                CourseApplication.course_id == course_id
+                CourseApplication.course_id == course_id,
             )
         )
         .order_by(CourseApplication.applied_at.desc())
@@ -127,10 +143,12 @@ async def get_course_public_detail(course_id: int, user: User, db: AsyncSession)
         "creator": course.creator,
         "created_at": course.created_at,
         "is_enrolled": enrollment is not None,
-        "application_status": application.status if application else None
+        "application_status": application.status if application else None,
     }
 
+
 # MY COURSES
+
 
 async def get_my_courses(user: User, db: AsyncSession):
     enrollments = await load_user_enrollments(user.id, db)
@@ -144,7 +162,7 @@ async def get_my_courses(user: User, db: AsyncSession):
         course_card = format_course_card(
             course=enrollment.course,
             progress_data=progress_data,
-            application_status=None
+            application_status=None,
         )
         courses_data.append(course_card)
 
@@ -153,7 +171,7 @@ async def get_my_courses(user: User, db: AsyncSession):
             course_card = format_course_card(
                 course=application.course,
                 progress_data=None,
-                application_status=application.status
+                application_status=application.status,
             )
             courses_data.append(course_card)
 
@@ -161,17 +179,20 @@ async def get_my_courses(user: User, db: AsyncSession):
 
 
 async def get_my_courses_progress(
-    user: User, db: AsyncSession,
+    user: User,
+    db: AsyncSession,
     search: Optional[str] = None,
     sort_by: str = "created_at",
-    order: str = "desc", page: int = 1,
-    page_size: int = 20
+    order: str = "desc",
+    page: int = 1,
+    page_size: int = 20,
 ):
     enrollments = await load_user_enrollments(user.id, db)
     if search:
         search_value = search.lower()
         enrollments = [
-            e for e in enrollments
+            e
+            for e in enrollments
             if search_value in (e.course.title or "").lower()
             or search_value in (e.course.description or "").lower()
         ]
@@ -182,7 +203,7 @@ async def get_my_courses_progress(
             "page": page,
             "page_size": page_size,
             "total_pages": 0,
-            "courses": []
+            "courses": [],
         }
 
     course_ids = [e.course_id for e in enrollments]
@@ -216,10 +237,7 @@ async def get_my_courses_progress(
         .join(Material, LessonProgress.lesson_id == Material.id)
         .join(Module, Material.module_id == Module.id)
         .where(
-            and_(
-                Module.course_id.in_(course_ids),
-                LessonProgress.user_id == user.id
-            )
+            and_(Module.course_id.in_(course_ids), LessonProgress.user_id == user.id)
         )
         .group_by(Module.course_id)
     )
@@ -234,7 +252,7 @@ async def get_my_courses_progress(
             and_(
                 Module.course_id.in_(course_ids),
                 TestAttempt.user_id == user.id,
-                TestAttempt.passed.is_(True)
+                TestAttempt.passed.is_(True),
             )
         )
         .group_by(Module.course_id)
@@ -243,12 +261,15 @@ async def get_my_courses_progress(
 
     completed_homework_result = await db.execute(
         select(HomeworkAssignment.course_id, func.count(HomeworkSubmission.id))
-        .join(HomeworkSubmission, HomeworkSubmission.assignment_id == HomeworkAssignment.id)
+        .join(
+            HomeworkSubmission,
+            HomeworkSubmission.assignment_id == HomeworkAssignment.id,
+        )
         .where(
             and_(
                 HomeworkAssignment.course_id.in_(course_ids),
                 HomeworkSubmission.student_id == user.id,
-                HomeworkSubmission.review_result == "credit"
+                HomeworkSubmission.review_result == "credit",
             )
         )
         .group_by(HomeworkAssignment.course_id)
@@ -272,25 +293,27 @@ async def get_my_courses_progress(
             (completed_items / total_items * 100) if total_items > 0 else 0.0
         )
 
-        courses_data.append({
-            "id": course.id,
-            "title": course.title,
-            "description": course.description,
-            "img_url": course.img_url,
-            "created_at": course.created_at,
-            "completed_lessons": completed_lessons,
-            "completed_tests": completed_tests,
-            "completed_homework": completed_homework,
-            "total_lessons": total_lessons,
-            "total_tests": total_tests,
-            "total_homework": total_homework,
-            "progress_percentage": round(progress_percentage, 2)
-        })
+        courses_data.append(
+            {
+                "id": course.id,
+                "title": course.title,
+                "description": course.description,
+                "img_url": course.img_url,
+                "created_at": course.created_at,
+                "completed_lessons": completed_lessons,
+                "completed_tests": completed_tests,
+                "completed_homework": completed_homework,
+                "total_lessons": total_lessons,
+                "total_tests": total_tests,
+                "total_homework": total_homework,
+                "progress_percentage": round(progress_percentage, 2),
+            }
+        )
 
     sort_key_map = {
         "created_at": lambda c: c["created_at"],
         "progress": lambda c: c["progress_percentage"],
-        "title": lambda c: (c["title"] or "").lower()
+        "title": lambda c: (c["title"] or "").lower(),
     }
     key_func = sort_key_map.get(sort_by, sort_key_map["created_at"])
     reverse = order.lower() != "asc"
@@ -307,7 +330,7 @@ async def get_my_courses_progress(
         "page": page,
         "page_size": page_size,
         "total_pages": total_pages,
-        "courses": paginated_courses
+        "courses": paginated_courses,
     }
 
 
@@ -319,8 +342,7 @@ async def get_enrolled_course_detail(course_id: int, user: User, db: AsyncSessio
 
 # MODULE WITH PROGRESS
 async def get_module_with_progress(
-    course_id: int, module_id: int,
-    user: User, db: AsyncSession
+    course_id: int, module_id: int, user: User, db: AsyncSession
 ):
     await require_course_enrollment(course_id, user, db)
     module = await load_module_with_materials(course_id, module_id, db)
@@ -346,13 +368,13 @@ async def get_module_with_progress(
             "completed_at": progress.completed_at if progress else None,
             "is_locked": False,
             "lock_reason": None,
-            "has_tests": len(material.tests) > 0
+            "has_tests": len(material.tests) > 0,
+            "has_homework": len(material.homework_assignments),
         }
         materials_data.append(material_dict)
 
     progress_percentage = (
-        (completed_count / len(module.materials) * 100)
-        if module.materials else 0
+        (completed_count / len(module.materials) * 100) if module.materials else 0
     )
 
     return {
@@ -361,16 +383,15 @@ async def get_module_with_progress(
         "position": module.position,
         "course_id": module.course_id,
         "materials": materials_data,
-        "progress_percentage": round(progress_percentage, 2)
+        "progress_percentage": round(progress_percentage, 2),
     }
 
 
 # PROGRESS TRACKING
 
+
 async def mark_material_completed(
-    course_id: int, module_id: int,
-    material_id: int, user: User,
-    db: AsyncSession
+    course_id: int, module_id: int, material_id: int, user: User, db: AsyncSession
 ):
     await require_course_enrollment(course_id, user, db)
     result = await db.execute(
@@ -380,7 +401,7 @@ async def mark_material_completed(
             and_(
                 Material.id == material_id,
                 Module.id == module_id,
-                Module.course_id == course_id
+                Module.course_id == course_id,
             )
         )
     )
@@ -388,13 +409,13 @@ async def mark_material_completed(
     if not material:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Material not found in this module"
+            detail="Material not found in this module",
         )
     progress_result = await db.execute(
         select(LessonProgress).where(
             and_(
                 LessonProgress.user_id == user.id,
-                LessonProgress.lesson_id == material_id
+                LessonProgress.lesson_id == material_id,
             )
         )
     )
@@ -416,19 +437,16 @@ async def update_course_progress(user_id: int, course_id: int, db: AsyncSession)
 
 
 async def get_material_detail(
-    course_id: int, module_id: int,
-    material_id: int, user: User,
-    db: AsyncSession
+    course_id: int, module_id: int, material_id: int, user: User, db: AsyncSession
 ):
-    access = await check_material_access(
-        course_id, module_id, material_id, user, db
-    )
+    access = await check_material_access(course_id, module_id, material_id, user, db)
     result = await db.execute(
         select(Material)
         .options(
             selectinload(Material.module),
             selectinload(Material.material_files).selectinload(MaterialFile.file),
-            selectinload(Material.tests)
+            selectinload(Material.tests),
+            selectinload(Material.homework_assignments),
         )
         .where(Material.id == material_id)
     )
@@ -437,7 +455,7 @@ async def get_material_detail(
         select(LessonProgress).where(
             and_(
                 LessonProgress.user_id == user.id,
-                LessonProgress.lesson_id == material_id
+                LessonProgress.lesson_id == material_id,
             )
         )
     )
@@ -448,7 +466,7 @@ async def get_material_detail(
             "id": material.module.id,
             "title": material.module.title,
             "position": material.module.position,
-            "course_id": material.module.course_id
+            "course_id": material.module.course_id,
         },
         "type": material.type,
         "title": material.title,
@@ -457,24 +475,21 @@ async def get_material_detail(
         "transcript": material.transcript,
         "position": material.position,
         "files": [
-            {
-                "id": mf.id,
-                "file_id": mf.file_id,
-                "file": mf.file
-            }
+            {"id": mf.id, "file_id": mf.file_id, "file": mf.file}
             for mf in material.material_files
         ],
         "has_tests": len(material.tests) > 0,
+        "has_homework": len(material.homework_assignments),
         "tests": [
             {
                 "id": test.id,
                 "title": test.title,
                 "num_questions": test.num_questions,
                 "time_limit_seconds": test.time_limit_seconds,
-                "pass_threshold": test.pass_threshold
+                "pass_threshold": test.pass_threshold,
             }
             for test in material.tests
         ],
         "is_completed": progress is not None,
-        "completed_at": progress.completed_at if progress else None
+        "completed_at": progress.completed_at if progress else None,
     }
