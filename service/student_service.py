@@ -446,6 +446,7 @@ async def get_material_detail(
             selectinload(Material.module),
             selectinload(Material.material_files).selectinload(MaterialFile.file),
             selectinload(Material.tests),
+            selectinload(Material.homework_assignments),
         )
         .where(Material.id == material_id)
     )
