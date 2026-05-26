@@ -9,10 +9,7 @@ from models import User, RoleType, CourseEditor
 from service.course_service import check_course_access
 
 
-async def add_editor(
-        course_id: int, teacher_id: int,
-        user: User, db: AsyncSession
-):
+async def add_editor(course_id: int, teacher_id: int, user: User, db: AsyncSession):
     course = await check_course_access(course_id, user, db, require_creator=True)
     result = await db.execute(
         select(User)
@@ -87,10 +84,10 @@ async def remove_editor(course_id: int, editor_id: int, user: User, db: AsyncSes
 
 
 async def get_course_editors(
-        course_id: int, user: User,
-        db: AsyncSession,
-        search: Optional[str] = None,
-        page: int = 1, page_size: int = 20
+    course_id: int, user: User,
+    db: AsyncSession,
+    search: Optional[str] = None,
+    page: int = 1, page_size: int = 20
 ):
     await check_course_access(course_id, user, db, require_creator=True)
     query = (

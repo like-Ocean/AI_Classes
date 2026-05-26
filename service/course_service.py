@@ -5,20 +5,12 @@ from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from models import (
-    Course,
-    Material,
-    CourseEditor,
-    User,
-    Module,
-    MaterialFile,
-    CourseEnrollment,
-    CourseProgress,
-    LessonProgress,
-    Test,
-    TestAttempt,
-    HomeworkAssignment,
-    HomeworkSubmission,
+    Course, Material, CourseEditor, User, Module,
+    MaterialFile, CourseEnrollment, CourseProgress,
+    LessonProgress, Test, TestAttempt,
+    HomeworkAssignment, HomeworkSubmission,
 )
+from helpers.general.common_helper import _build_full_name
 from helpers.students.formatters import format_progress_data
 from schemas.enums import CourseRoleFilter
 from schemas.course import CourseCreateRequest, CourseUpdateRequest
@@ -76,11 +68,9 @@ async def create_course(data: CourseCreateRequest, creator: User, db: AsyncSessi
 
 
 async def get_my_courses(
-    user: User,
-    db: AsyncSession,
+    user: User, db: AsyncSession,
     search: Optional[str] = None,
-    page: int = 1,
-    page_size: int = 20,
+    page: int = 1, page_size: int = 20,
     role: CourseRoleFilter = CourseRoleFilter.all,
 ):
     creator_query = (
@@ -247,13 +237,10 @@ async def delete_course(course_id: int, user: User, db: AsyncSession):
 
 
 async def get_enrolled_students(
-    course_id: int,
-    user: User,
-    db: AsyncSession,
+    course_id: int, user: User, db: AsyncSession,
     search: Optional[str] = None,
     min_progress: Optional[int] = None,
-    page: int = 1,
-    page_size: int = 50,
+    page: int = 1, page_size: int = 50,
 ):
     await check_course_access(course_id, user, db, require_creator=False)
     query = (
@@ -366,13 +353,12 @@ async def unenroll_student(course_id: int, user_id: int, user: User, db: AsyncSe
     return {"message": f"Student {student_name} unenrolled from course"}
 
 
-def _build_full_name(user: User) -> str:
-    parts = [user.last_name, user.first_name, user.patronymic]
-    return " ".join(p for p in parts if p)
-
-
 async def get_course_progress_overview(
-    course_id: int, user: User, db: AsyncSession, page: int = 1, page_size: int = 50
+    course_id: int, user: User, db: AsyncSession, page: int = 1,
+    page_size: int = 50, search: Optional[str] = None,
+    group_name: Optional[str] = None, min_progress: Optional[float] = None,
+    max_progress: Optional[float] = None,
+    sort_by: str = "progress", order: str = "desc",
 ) -> CourseProgressOverviewResponse:
     await check_course_access(course_id, user, db, require_creator=False)
 
@@ -489,6 +475,45 @@ async def get_course_progress_overview(
                 progress_percentage=round(progress_percentage, 2),
             )
         )
+
+    if search:
+        search_value = search.lower()
+        email_map = {e.user_id: e.user.email for e in enrollments}
+        students_rows = [
+            row for row in students_rows
+            if search_value in " ".join(
+                part.lower() for part in [
+                    row.full_name or "",
+                    row.group_name or "",
+                    email_map.get(row.user_id, ""),
+                ]
+            )
+        ]
+
+    if group_name:
+        group_value = group_name.lower()
+        students_rows = [
+            row for row in students_rows
+            if (row.group_name or "").lower() == group_value
+        ]
+
+    if min_progress is not None:
+        students_rows = [row for row in students_rows if row.progress_percentage >= min_progress]
+
+    if max_progress is not None:
+        students_rows = [row for row in students_rows if row.progress_percentage <= max_progress]
+
+    sort_key_map = {
+        "progress": lambda s: s.progress_percentage,
+        "full_name": lambda s: (s.full_name or "").lower(),
+        "completed_lessons": lambda s: s.completed_lessons,
+        "completed_tests": lambda s: s.completed_tests,
+        "completed_homework": lambda s: s.completed_homework,
+        "group_name": lambda s: (s.group_name or "").lower(),
+    }
+    key_func = sort_key_map.get(sort_by, sort_key_map["progress"])
+    reverse = order.lower() != "asc"
+    students_rows.sort(key=key_func, reverse=reverse)
 
     least_active = sorted(students_rows, key=lambda s: s.progress_percentage)[:5]
 

@@ -6,7 +6,7 @@ from models.Enums import (
     HomeworkSubmissionStatus, HomeworkReviewResult
 )
 from schemas.file import FileResponse
-from schemas.base import ORMModel
+from schemas.base import ORMModel, PaginationMeta
 
 
 class HomeworkCreateRequest(BaseModel):
@@ -31,6 +31,8 @@ class HomeworkSubmissionResponse(ORMModel):
     id: int
     assignment_id: int
     student_id: int
+    full_name: Optional[str] = None
+    group_name: Optional[str] = None
     text_answer: Optional[str] = None
     status: HomeworkSubmissionStatus
     review_result: Optional[HomeworkReviewResult] = None
@@ -40,6 +42,10 @@ class HomeworkSubmissionResponse(ORMModel):
     submitted_at: datetime
     updated_at: datetime
     files: List[FileResponse] = []
+
+
+class PaginatedHomeworkSubmissionsResponse(PaginationMeta):
+    submissions: List[HomeworkSubmissionResponse] = []
 
 
 class HomeworkReviewRequest(BaseModel):

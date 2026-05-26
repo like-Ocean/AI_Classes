@@ -11,8 +11,8 @@ from service.course_service import check_course_access
 
 
 async def create_module(
-        course_id: int, data: ModuleCreateRequest,
-        user: User, db: AsyncSession
+    course_id: int, data: ModuleCreateRequest,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     module = Module(
@@ -28,10 +28,7 @@ async def create_module(
     return module
 
 
-async def get_module_detail(
-        course_id: int, module_id: int,
-        user: User, db: AsyncSession
-):
+async def get_module_detail(course_id: int, module_id: int, user: User, db: AsyncSession):
     await check_course_access(course_id, user, db)
     result = await db.execute(
         select(Module)
@@ -57,9 +54,8 @@ async def get_module_detail(
 
 
 async def update_module(
-        course_id: int, module_id: int,
-        data: ModuleUpdateRequest,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int, data: ModuleUpdateRequest,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(
@@ -85,10 +81,7 @@ async def update_module(
     return module
 
 
-async def delete_module(
-        course_id: int, module_id: int,
-        user: User, db: AsyncSession
-):
+async def delete_module(course_id: int, module_id: int, user: User, db: AsyncSession):
     await check_course_access(course_id, user, db)
     result = await db.execute(
         select(Module).where(
@@ -106,10 +99,7 @@ async def delete_module(
     await db.commit()
 
 
-async def get_module_tests(
-        course_id: int, module_id: int,
-        user: User, db: AsyncSession
-):
+async def get_module_tests(course_id: int, module_id: int, user: User, db: AsyncSession):
     await check_course_access(course_id, user, db)
     tests = await load_module_tests(course_id, module_id, db)
     tests_data = []

@@ -12,10 +12,24 @@ from helpers.files.files_helper import (
 )
 
 
+async def _normalize_material_positions(module_id: int, db: AsyncSession) -> None:
+    result = await db.execute(
+        select(Material)
+        .where(Material.module_id == module_id)
+        .order_by(Material.position, Material.id)
+    )
+    materials = list(result.scalars().all())
+    for index, material in enumerate(materials, start=1):
+        if material.position != index:
+            material.position = index
+
+    await db.commit()
+
+
 async def create_material(
-        course_id: int, module_id: int,
-        data: MaterialCreateRequest,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    data: MaterialCreateRequest,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(
@@ -44,14 +58,16 @@ async def create_material(
     await db.commit()
     await db.refresh(material)
 
+    await _normalize_material_positions(module_id, db)
+
     return material
 
 
 async def update_material(
-        course_id: int, module_id: int,
-        material_id: int,
-        data: MaterialUpdateRequest,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int,
+    data: MaterialUpdateRequest,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(
@@ -82,19 +98,23 @@ async def update_material(
         material.text_content = data.text_content
     if data.transcript is not None:
         material.transcript = data.transcript
+    position_changed = False
     if data.position is not None:
         material.position = data.position
+        position_changed = True
 
     await db.commit()
     await db.refresh(material)
+
+    if position_changed:
+        await _normalize_material_positions(module_id, db)
 
     return material
 
 
 async def delete_material(
-        course_id: int, module_id: int,
-        material_id: int,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int, material_id: int,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(
@@ -118,11 +138,13 @@ async def delete_material(
     await db.delete(material)
     await db.commit()
 
+    await _normalize_material_positions(module_id, db)
+
 
 async def attach_files_to_material(
-        course_id: int, module_id: int,
-        material_id: int, file_ids: List[int],
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, file_ids: List[int],
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     material = await get_material(db, material_id, module_id, course_id)
@@ -141,9 +163,9 @@ async def attach_files_to_material(
 
 
 async def detach_file_from_material(
-        course_id: int, module_id: int,
-        material_id: int, file_id: int,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, file_id: int,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(

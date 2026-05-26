@@ -14,10 +14,10 @@ from service.course_service import check_course_access
 
 # TESTS
 async def create_test(
-        course_id: int, module_id: int,
-        material_id: int,
-        data: TestCreateRequest,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int,
+    data: TestCreateRequest,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(
@@ -67,9 +67,9 @@ async def create_test(
 
 
 async def get_test_detail(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(
@@ -101,10 +101,10 @@ async def get_test_detail(
 
 
 async def update_test(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        data: TestUpdateRequest,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    data: TestUpdateRequest,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(
@@ -150,9 +150,9 @@ async def update_test(
 
 
 async def delete_test(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(
@@ -182,10 +182,10 @@ async def delete_test(
 # QUESTIONS
 
 async def create_question(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        data: QuestionCreateRequest,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    data: QuestionCreateRequest,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(
@@ -260,11 +260,11 @@ async def create_question(
 
 
 async def update_question(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        question_id: int,
-        data: QuestionUpdateRequest,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    question_id: int,
+    data: QuestionUpdateRequest,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(
@@ -321,10 +321,10 @@ async def update_question(
 
 
 async def delete_question(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        question_id: int, user: User,
-        db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    question_id: int, user: User,
+    db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(
@@ -356,10 +356,10 @@ async def delete_question(
 # ANSWER
 
 async def add_answer_option(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        question_id: int, data: AnswerOptionCreate,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    question_id: int, data: AnswerOptionCreate,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(
@@ -407,11 +407,11 @@ async def add_answer_option(
 
 
 async def update_answer_option(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        question_id: int, option_id: int,
-        data: AnswerOptionUpdate,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    question_id: int, option_id: int,
+    data: AnswerOptionUpdate,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(
@@ -465,10 +465,10 @@ async def update_answer_option(
 
 
 async def delete_answer_option(
-        course_id: int, module_id: int,
-        material_id: int, test_id: int,
-        question_id: int, option_id: int,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, test_id: int,
+    question_id: int, option_id: int,
+    user: User, db: AsyncSession
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(

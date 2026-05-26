@@ -209,11 +209,19 @@ async def unenroll_student(
 )
 async def get_course_progress_overview(
     course_id: int,
+    search: Optional[str] = Query(None, description="Поиск по имени, email или группе"),
+    group_name: Optional[str] = Query(None, description="Фильтр по группе"),
+    min_progress: Optional[float] = Query(None, ge=0, le=100, description="Минимальный прогресс (%)"),
+    max_progress: Optional[float] = Query(None, ge=0, le=100, description="Максимальный прогресс (%)"),
+    sort_by: str = Query("progress", description="Сортировка: progress, full_name, completed_lessons, completed_tests, completed_homework, group_name"),
+    order: str = Query("desc", description="Порядок сортировки: asc или desc"),
     page: int = Query(1, ge=1, description="Номер страницы"),
     page_size: int = Query(50, ge=1, le=200, description="Размер страницы"),
     current_teacher: User = Depends(get_current_teacher),
     db: AsyncSession = Depends(get_db)
 ):
     return await course_service.get_course_progress_overview(
-        course_id, current_teacher, db, page, page_size
+        course_id, current_teacher, db, page, page_size,
+        search, group_name, min_progress, max_progress,
+        sort_by, order,
     )

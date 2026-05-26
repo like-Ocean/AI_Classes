@@ -1,73 +1,37 @@
 from datetime import datetime
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from math import ceil
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status, UploadFile
 from models import (
-    User,
-    Module,
-    Material,
-    HomeworkAssignment,
-    HomeworkSubmission,
-    HomeworkSubmissionFile,
-    LessonProgress,
+    User, HomeworkAssignment, HomeworkSubmission,
+    HomeworkSubmissionFile, LessonProgress,
 )
 from models.Enums import (
-    HomeworkSubmissionFormat,
-    HomeworkSubmissionStatus,
+    HomeworkSubmissionFormat, HomeworkSubmissionStatus,
     HomeworkReviewResult,
 )
 from service.course_service import check_course_access
+from helpers.teacher.homework_helper import (
+    detect_submission_format, get_material_for_context,
+    get_assignment_with_context_for_student, _serialize_submission,
+    mark_material_completed_by_homework
+)
 from helpers.students.access_helper import require_course_enrollment
 from helpers.students.progress_helper import update_course_progress_record
 from service.file_service import save_file
 
 
-def _detect_submission_format(upload_file: UploadFile) -> HomeworkSubmissionFormat:
-    mime = (upload_file.content_type or "").lower()
-    if mime.startswith("video/"):
-        return HomeworkSubmissionFormat.video
-    if mime.startswith("image/"):
-        return HomeworkSubmissionFormat.photo
-    return HomeworkSubmissionFormat.files
-
-
-async def _get_material_for_context(
-    course_id: int, module_id: int, material_id: int, db: AsyncSession
-) -> Material:
-    result = await db.execute(
-        select(Material)
-        .join(Module, Module.id == Material.module_id)
-        .where(
-            and_(
-                Material.id == material_id,
-                Module.id == module_id,
-                Module.course_id == course_id,
-            )
-        )
-    )
-    material = result.scalar_one_or_none()
-    if not material:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Material not found in this module",
-        )
-    return material
-
-
 async def create_homework_assignment(
-    course_id: int,
-    module_id: int,
-    material_id: int,
-    description: str,
+    course_id: int, module_id: int,
+    material_id: int, description: str,
     allowed_formats: List[HomeworkSubmissionFormat],
-    deadline: datetime,
-    user: User,
-    db: AsyncSession,
+    deadline: datetime, user: User, db: AsyncSession,
 ) -> HomeworkAssignment:
     await check_course_access(course_id, user, db)
-    await _get_material_for_context(course_id, module_id, material_id, db)
+    await get_material_for_context(course_id, module_id, material_id, db)
 
     # Приводим deadline к naive datetime (убираем timezone), т.к. колонка в БД — TIMESTAMP WITHOUT TIME ZONE
     if deadline.tzinfo is not None:
@@ -93,7 +57,7 @@ async def list_material_homework_for_teacher(
     course_id: int, module_id: int, material_id: int, user: User, db: AsyncSession
 ) -> List[HomeworkAssignment]:
     await check_course_access(course_id, user, db)
-    await _get_material_for_context(course_id, module_id, material_id, db)
+    await get_material_for_context(course_id, module_id, material_id, db)
 
     result = await db.execute(
         select(HomeworkAssignment)
@@ -113,7 +77,7 @@ async def list_material_homework_for_student(
     course_id: int, module_id: int, material_id: int, user: User, db: AsyncSession
 ) -> List[HomeworkAssignment]:
     await require_course_enrollment(course_id, user, db)
-    await _get_material_for_context(course_id, module_id, material_id, db)
+    await get_material_for_context(course_id, module_id, material_id, db)
 
     assignments_result = await db.execute(
         select(HomeworkAssignment)
@@ -137,7 +101,8 @@ async def list_material_homework_for_student(
         .options(
             selectinload(HomeworkSubmission.files).selectinload(
                 HomeworkSubmissionFile.file
-            )
+            ),
+            selectinload(HomeworkSubmission.student)
         )
         .where(
             and_(
@@ -185,46 +150,12 @@ async def list_material_homework_for_student(
     return response
 
 
-async def _get_assignment_with_context_for_student(
-    course_id: int,
-    module_id: int,
-    material_id: int,
-    assignment_id: int,
-    user: User,
-    db: AsyncSession,
-) -> HomeworkAssignment:
-    await require_course_enrollment(course_id, user, db)
-
-    result = await db.execute(
-        select(HomeworkAssignment).where(
-            and_(
-                HomeworkAssignment.id == assignment_id,
-                HomeworkAssignment.course_id == course_id,
-                HomeworkAssignment.module_id == module_id,
-                HomeworkAssignment.material_id == material_id,
-            )
-        )
-    )
-    assignment = result.scalar_one_or_none()
-    if not assignment:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Homework assignment not found",
-        )
-    return assignment
-
-
 async def submit_homework(
-    course_id: int,
-    module_id: int,
-    material_id: int,
-    assignment_id: int,
-    text_answer: Optional[str],
-    files: List[UploadFile],
-    user: User,
-    db: AsyncSession,
+    course_id: int, module_id: int, material_id: int,
+    assignment_id: int, text_answer: Optional[str],
+    files: List[UploadFile], user: User, db: AsyncSession,
 ) -> HomeworkSubmission:
-    assignment = await _get_assignment_with_context_for_student(
+    assignment = await get_assignment_with_context_for_student(
         course_id, module_id, material_id, assignment_id, user, db
     )
 
@@ -248,7 +179,7 @@ async def submit_homework(
 
     uploaded_file_records = []
     for f in files:
-        detected_format = _detect_submission_format(f)
+        detected_format = detect_submission_format(f)
         if detected_format.value not in allowed:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -259,7 +190,10 @@ async def submit_homework(
 
     result = await db.execute(
         select(HomeworkSubmission)
-        .options(selectinload(HomeworkSubmission.files))
+        .options(
+            selectinload(HomeworkSubmission.files),
+            selectinload(HomeworkSubmission.student)
+        )
         .where(
             and_(
                 HomeworkSubmission.assignment_id == assignment_id,
@@ -307,7 +241,8 @@ async def submit_homework(
         .options(
             selectinload(HomeworkSubmission.files).selectinload(
                 HomeworkSubmissionFile.file
-            )
+            ),
+            selectinload(HomeworkSubmission.student)
         )
         .where(HomeworkSubmission.id == submission.id)
     )
@@ -315,14 +250,10 @@ async def submit_homework(
 
 
 async def get_my_homework_submission(
-    course_id: int,
-    module_id: int,
-    material_id: int,
-    assignment_id: int,
-    user: User,
-    db: AsyncSession,
+    course_id: int, module_id: int, material_id: int,
+    assignment_id: int, user: User, db: AsyncSession,
 ) -> HomeworkSubmission:
-    await _get_assignment_with_context_for_student(
+    await get_assignment_with_context_for_student(
         course_id, module_id, material_id, assignment_id, user, db
     )
 
@@ -331,7 +262,8 @@ async def get_my_homework_submission(
         .options(
             selectinload(HomeworkSubmission.files).selectinload(
                 HomeworkSubmissionFile.file
-            )
+            ),
+            selectinload(HomeworkSubmission.student)
         )
         .where(
             and_(
@@ -349,31 +281,16 @@ async def get_my_homework_submission(
     return submission
 
 
-def _serialize_submission(submission: HomeworkSubmission) -> dict:
-    return {
-        "id": submission.id,
-        "assignment_id": submission.assignment_id,
-        "student_id": submission.student_id,
-        "text_answer": submission.text_answer,
-        "status": submission.status,
-        "review_result": submission.review_result,
-        "review_comment": submission.review_comment,
-        "reviewed_by": submission.reviewed_by,
-        "reviewed_at": submission.reviewed_at,
-        "submitted_at": submission.submitted_at,
-        "updated_at": submission.updated_at,
-        "files": [sf.file for sf in submission.files],
-    }
-
-
 async def list_homework_submissions_for_teacher(
-    course_id: int,
-    module_id: int,
-    material_id: int,
-    assignment_id: int,
-    user: User,
-    db: AsyncSession,
-) -> list[dict]:
+    course_id: int, module_id: int,
+    material_id: int, assignment_id: int,
+    user: User, db: AsyncSession,
+    search: Optional[str] = None,
+    submission_status: Optional[HomeworkSubmissionStatus] = None,
+    review_result: Optional[HomeworkReviewResult] = None,
+    sort_by: str = "updated_at", order: str = "desc",
+    page: int = 1, page_size: int = 50,
+) -> dict:
     await check_course_access(course_id, user, db)
 
     assignment_result = await db.execute(
@@ -393,49 +310,72 @@ async def list_homework_submissions_for_teacher(
             detail="Homework assignment not found",
         )
 
+    base_query = select(HomeworkSubmission)
+    if search:
+        base_query = base_query.join(User, HomeworkSubmission.student_id == User.id)
+
+    filters = [HomeworkSubmission.assignment_id == assignment_id]
+    if submission_status is not None:
+        filters.append(HomeworkSubmission.status == submission_status.value)
+    if review_result is not None:
+        filters.append(HomeworkSubmission.review_result == review_result.value)
+    if search:
+        search_value = f"%{search}%"
+        filters.append(
+            or_(
+                User.first_name.ilike(search_value),
+                User.last_name.ilike(search_value),
+                User.patronymic.ilike(search_value),
+                User.email.ilike(search_value),
+            )
+        )
+
+    count_query = select(func.count()).select_from(
+        base_query.where(and_(*filters)).subquery()
+    )
+    total_result = await db.execute(count_query)
+    total = total_result.scalar() or 0
+    total_pages = ceil(total / page_size) if total > 0 else 0
+
+    sort_key_map = {
+        "submitted_at": HomeworkSubmission.submitted_at,
+        "updated_at": HomeworkSubmission.updated_at,
+        "status": HomeworkSubmission.status,
+        "review_result": HomeworkSubmission.review_result,
+    }
+    sort_column = sort_key_map.get(sort_by, HomeworkSubmission.updated_at)
+    order_by = sort_column.asc() if order.lower() == "asc" else sort_column.desc()
+
     submissions_result = await db.execute(
-        select(HomeworkSubmission)
+        base_query
         .options(
             selectinload(HomeworkSubmission.files).selectinload(
                 HomeworkSubmissionFile.file
-            )
+            ),
+            selectinload(HomeworkSubmission.student)
         )
-        .where(HomeworkSubmission.assignment_id == assignment_id)
-        .order_by(HomeworkSubmission.updated_at.desc(), HomeworkSubmission.id.desc())
+        .where(and_(*filters))
+        .order_by(order_by, HomeworkSubmission.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
     submissions = list(submissions_result.scalars().all())
-    return [_serialize_submission(sub) for sub in submissions]
 
-
-async def _mark_material_completed_by_homework(
-    user_id: int, material_id: int, course_id: int, db: AsyncSession
-):
-    progress_result = await db.execute(
-        select(LessonProgress).where(
-            and_(
-                LessonProgress.user_id == user_id,
-                LessonProgress.lesson_id == material_id,
-            )
-        )
-    )
-    existing = progress_result.scalar_one_or_none()
-    if not existing:
-        db.add(LessonProgress(user_id=user_id, lesson_id=material_id))
-        await db.commit()
-
-    await update_course_progress_record(user_id, course_id, db)
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+        "submissions": [_serialize_submission(sub) for sub in submissions],
+    }
 
 
 async def review_homework_submission(
-    course_id: int,
-    module_id: int,
-    material_id: int,
-    assignment_id: int,
-    submission_id: int,
+    course_id: int, module_id: int, material_id: int,
+    assignment_id: int, submission_id: int,
     review_result: HomeworkReviewResult,
     review_comment: Optional[str],
-    user: User,
-    db: AsyncSession,
+    user: User, db: AsyncSession,
 ) -> dict:
     await check_course_access(course_id, user, db)
 
@@ -448,7 +388,8 @@ async def review_homework_submission(
         .options(
             selectinload(HomeworkSubmission.files).selectinload(
                 HomeworkSubmissionFile.file
-            )
+            ),
+            selectinload(HomeworkSubmission.student)
         )
         .where(
             and_(
@@ -480,7 +421,7 @@ async def review_homework_submission(
     if review_result == HomeworkReviewResult.credit:
         assignment = await db.get(HomeworkAssignment, submission.assignment_id)
         if assignment:
-            await _mark_material_completed_by_homework(
+            await mark_material_completed_by_homework(
                 user_id=submission.student_id,
                 material_id=assignment.material_id,
                 course_id=assignment.course_id,
@@ -492,7 +433,8 @@ async def review_homework_submission(
         .options(
             selectinload(HomeworkSubmission.files).selectinload(
                 HomeworkSubmissionFile.file
-            )
+            ),
+            selectinload(HomeworkSubmission.student)
         )
         .where(HomeworkSubmission.id == submission.id)
     )

@@ -15,9 +15,9 @@ from service.course_service import check_course_access
 
 
 async def get_course_applications(
-        course_id: int, user: User, db: AsyncSession,
-        status: Optional[ApplicationStatus] = None,
-        page: int = 1, page_size: int = 20
+    course_id: int, user: User, db: AsyncSession,
+    status: Optional[ApplicationStatus] = None,
+    page: int = 1, page_size: int = 20
 ):
     await check_course_access(course_id, user, db, require_creator=False)
 
@@ -221,9 +221,9 @@ async def apply_for_course(course_id: int, user: User, db: AsyncSession):
 
 
 async def get_my_applications(
-        user: User, db: AsyncSession,
-        status: Optional[ApplicationStatus] = None,
-        page: int = 1, page_size: int = 20
+    user: User, db: AsyncSession,
+    status: Optional[ApplicationStatus] = None,
+    page: int = 1, page_size: int = 20
 ):
     base_query = select(CourseApplication).where(
         CourseApplication.user_id == user.id

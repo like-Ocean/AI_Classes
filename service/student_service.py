@@ -5,17 +5,10 @@ from fastapi import HTTPException, status
 from typing import Optional
 from math import ceil
 from models import (
-    Course,
-    Module,
-    Material,
-    User,
-    CourseApplication,
-    CourseEnrollment,
-    LessonProgress,
-    MaterialFile,
-    Test,
-    TestAttempt,
-    HomeworkAssignment,
+    Course, Module, Material, User,
+    CourseApplication, CourseEnrollment,
+    LessonProgress, MaterialFile, Test,
+    TestAttempt, HomeworkAssignment,
     HomeworkSubmission,
 )
 from helpers.students.access_helper import (
@@ -42,11 +35,9 @@ from helpers.students.formatters import format_progress_data, format_course_card
 
 # COURSE CATALOG
 async def get_available_courses(
-    user: User,
-    db: AsyncSession,
+    user: User, db: AsyncSession,
     search: Optional[str] = None,
-    page: int = 1,
-    page_size: int = 20,
+    page: int = 1, page_size: int = 20,
 ):
     query = select(Course).options(selectinload(Course.creator))
 
@@ -179,13 +170,11 @@ async def get_my_courses(user: User, db: AsyncSession):
 
 
 async def get_my_courses_progress(
-    user: User,
-    db: AsyncSession,
+    user: User, db: AsyncSession,
     search: Optional[str] = None,
     sort_by: str = "created_at",
     order: str = "desc",
-    page: int = 1,
-    page_size: int = 20,
+    page: int = 1, page_size: int = 20,
 ):
     enrollments = await load_user_enrollments(user.id, db)
     if search:
