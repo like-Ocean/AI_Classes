@@ -488,7 +488,7 @@ async def get_course_progress_overview(
                 completed_lessons=completed_lessons,
                 completed_tests=completed_tests,
                 completed_homework=completed_homework,
-                total_lessons=total_lessons,
+                total_lessons=total_materials,
                 total_tests=total_tests,
                 remaining_tests=max(total_tests - completed_tests, 0),
                 total_homework=total_homework,
