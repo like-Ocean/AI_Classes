@@ -5,10 +5,19 @@ from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from models import (
-    Course, Material, CourseEditor, User, Module,
-    MaterialFile, CourseEnrollment, CourseProgress,
-    LessonProgress, Test, TestAttempt,
-    HomeworkAssignment, HomeworkSubmission,
+    Course,
+    Material,
+    CourseEditor,
+    User,
+    Module,
+    MaterialFile,
+    CourseEnrollment,
+    CourseProgress,
+    LessonProgress,
+    Test,
+    TestAttempt,
+    HomeworkAssignment,
+    HomeworkSubmission,
 )
 from helpers.general.common_helper import _build_full_name
 from helpers.students.formatters import format_progress_data
@@ -68,9 +77,11 @@ async def create_course(data: CourseCreateRequest, creator: User, db: AsyncSessi
 
 
 async def get_my_courses(
-    user: User, db: AsyncSession,
+    user: User,
+    db: AsyncSession,
     search: Optional[str] = None,
-    page: int = 1, page_size: int = 20,
+    page: int = 1,
+    page_size: int = 20,
     role: CourseRoleFilter = CourseRoleFilter.all,
 ):
     creator_query = (
@@ -237,10 +248,13 @@ async def delete_course(course_id: int, user: User, db: AsyncSession):
 
 
 async def get_enrolled_students(
-    course_id: int, user: User, db: AsyncSession,
+    course_id: int,
+    user: User,
+    db: AsyncSession,
     search: Optional[str] = None,
     min_progress: Optional[int] = None,
-    page: int = 1, page_size: int = 50,
+    page: int = 1,
+    page_size: int = 50,
 ):
     await check_course_access(course_id, user, db, require_creator=False)
     query = (
@@ -354,11 +368,17 @@ async def unenroll_student(course_id: int, user_id: int, user: User, db: AsyncSe
 
 
 async def get_course_progress_overview(
-    course_id: int, user: User, db: AsyncSession, page: int = 1,
-    page_size: int = 50, search: Optional[str] = None,
-    group_name: Optional[str] = None, min_progress: Optional[float] = None,
+    course_id: int,
+    user: User,
+    db: AsyncSession,
+    page: int = 1,
+    page_size: int = 50,
+    search: Optional[str] = None,
+    group_name: Optional[str] = None,
+    min_progress: Optional[float] = None,
     max_progress: Optional[float] = None,
-    sort_by: str = "progress", order: str = "desc",
+    sort_by: str = "progress",
+    order: str = "desc",
 ) -> CourseProgressOverviewResponse:
     await check_course_access(course_id, user, db, require_creator=False)
 
@@ -468,6 +488,7 @@ async def get_course_progress_overview(
                 completed_lessons=completed_lessons,
                 completed_tests=completed_tests,
                 completed_homework=completed_homework,
+                total_lessons=total_materials,
                 total_tests=total_tests,
                 remaining_tests=max(total_tests - completed_tests, 0),
                 total_homework=total_homework,
@@ -480,9 +501,12 @@ async def get_course_progress_overview(
         search_value = search.lower()
         email_map = {e.user_id: e.user.email for e in enrollments}
         students_rows = [
-            row for row in students_rows
-            if search_value in " ".join(
-                part.lower() for part in [
+            row
+            for row in students_rows
+            if search_value
+            in " ".join(
+                part.lower()
+                for part in [
                     row.full_name or "",
                     row.group_name or "",
                     email_map.get(row.user_id, ""),
@@ -493,15 +517,20 @@ async def get_course_progress_overview(
     if group_name:
         group_value = group_name.lower()
         students_rows = [
-            row for row in students_rows
+            row
+            for row in students_rows
             if (row.group_name or "").lower() == group_value
         ]
 
     if min_progress is not None:
-        students_rows = [row for row in students_rows if row.progress_percentage >= min_progress]
+        students_rows = [
+            row for row in students_rows if row.progress_percentage >= min_progress
+        ]
 
     if max_progress is not None:
-        students_rows = [row for row in students_rows if row.progress_percentage <= max_progress]
+        students_rows = [
+            row for row in students_rows if row.progress_percentage <= max_progress
+        ]
 
     sort_key_map = {
         "progress": lambda s: s.progress_percentage,
