@@ -8,6 +8,7 @@ class StudentProgressRow(BaseModel):
     full_name: str
     group_name: Optional[str] = None
     completed_lessons: int = 0
+    total_lessons: int = 0
     completed_tests: int = 0
     completed_homework: int = 0
     total_tests: int = 0
