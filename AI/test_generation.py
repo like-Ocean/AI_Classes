@@ -1,7 +1,7 @@
 from AI import ai_service
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-from typing import List
+from typing import List, Optional
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status
 from models import Test, Question, AnswerOption, Material, User, Module
@@ -10,11 +10,12 @@ from service.course_service import check_course_access
 
 
 async def generate_test_with_ai(
-        course_id: int, module_id: int,
-        material_id: int, num_questions: int,
-        question_types: List[str],
-        pass_threshold: int, time_limit_minutes: int,
-        user: User, db: AsyncSession
+    course_id: int, module_id: int,
+    material_id: int, num_questions: int,
+    question_types: List[str],
+    pass_threshold: int, time_limit_minutes: int,
+    user: User, db: AsyncSession,
+    target_material_id: Optional[int] = None
 ):
     await check_course_access(course_id, user, db)
     result = await db.execute(
@@ -28,31 +29,49 @@ async def generate_test_with_ai(
             )
         )
     )
-    material = result.scalar_one_or_none()
-    if not material:
+    source_material = result.scalar_one_or_none()
+    if not source_material:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Material not found in this module"
         )
 
+    final_target_id = target_material_id if target_material_id is not None else material_id
+    if target_material_id is not None and target_material_id != material_id:
+        target_result = await db.execute(
+            select(Material)
+            .join(Module)
+            .where(
+                and_(
+                    Material.id == target_material_id,
+                    Module.id == module_id,
+                    Module.course_id == course_id
+                )
+            )
+        )
+        if not target_result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Target material not found in this module"
+            )
+
     existing_test = await db.execute(
-        select(Test).where(Test.material_id == material_id)
+        select(Test).where(Test.material_id == final_target_id)
     )
     if existing_test.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="This material already has a test. Only one test per material is allowed."
+            detail="Target material already has a test. Only one test per material is allowed."
         )
-
     material_content = ""
-    if material.text_content:
-        material_content = material.text_content
-    elif material.transcript:
-        material_content = material.transcript
+    if source_material.text_content:
+        material_content = source_material.text_content
+    elif source_material.transcript:
+        material_content = source_material.transcript
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Material must have text_content or transcript for test generation"
+            detail="Source material must have text_content or transcript for test generation"
         )
 
     try:
@@ -68,7 +87,7 @@ async def generate_test_with_ai(
         )
 
     test = Test(
-        title=ai_response.get("title", f"Тест по материалу: {material.title}"),
+        title=ai_response.get("title", f"Тест по материалу: {source_material.title}"),
         num_questions=num_questions,
         time_limit_seconds=time_limit_minutes * 60 if time_limit_minutes else None,
         pass_threshold=pass_threshold,
@@ -76,7 +95,7 @@ async def generate_test_with_ai(
         generated_by_nn=True,
         created_by=user.id,
         module_id=module_id,
-        material_id=material_id
+        material_id=final_target_id
     )
 
     db.add(test)

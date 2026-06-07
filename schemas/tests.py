@@ -12,6 +12,10 @@ class GenerateTestRequest(BaseModel):
     )
     pass_threshold: int = Field(70, ge=0, le=100, description="Проходной балл (%)")
     time_limit_minutes: int = Field(15, ge=5, le=180, description="Лимит времени (мин)")
+    target_material_id: Optional[int] = Field(
+        None,
+        description="ID материала, к которому будет привязан тест. Если не указан — привязывается к source материалу."
+    )
 
 
 class TestCreateRequest(BaseModel):

@@ -17,10 +17,10 @@ ai_router = APIRouter(prefix="/ai", tags=["AI"])
     summary="Generate test with AI"
 )
 async def generate_test(
-        course_id: int, module_id: int,
-        material_id: int, data: GenerateTestRequest,
-        current_teacher: User = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db)
+    course_id: int, module_id: int,
+    material_id: int, data: GenerateTestRequest,
+    current_teacher: User = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db)
 ):
     test = await generate_test_with_ai(
         course_id=course_id, module_id=module_id,
@@ -29,6 +29,7 @@ async def generate_test(
         question_types=data.question_types,
         pass_threshold=data.pass_threshold,
         time_limit_minutes=data.time_limit_minutes,
-        user=current_teacher, db=db
+        user=current_teacher, db=db,
+        target_material_id=data.target_material_id
     )
     return test
